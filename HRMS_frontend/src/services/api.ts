@@ -40,7 +40,7 @@ import {
 
 // Resolve API Base URL: respects VITE_API_BASE_URL; falls back to relative '/api' in production
 const API_BASE = import.meta.env.VITE_API_BASE_URL
-  ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/$/, '')}/api`
+  ? `${import.meta.env.VITE_API_BASE_URL.replace(/\/+$/, '').replace(/\/api$/, '')}/api`
   : import.meta.env.PROD
     ? '/api'
     : (typeof window !== 'undefined' && window.location.hostname === 'localhost' ? 'http://localhost:3000/api' : '/api');

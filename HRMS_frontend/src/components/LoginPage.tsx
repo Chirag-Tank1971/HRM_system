@@ -16,12 +16,9 @@ interface QuickRole {
 }
 
 const QUICK_ROLES: QuickRole[] = [
-  { role: 'SUPER_ADMIN', title: 'Super Admin', shortLabel: 'Admin', email: 'admin@company.com', name: 'System Admin' },
-  { role: 'HR', title: 'HR Manager', shortLabel: 'HR', email: 'frank.mgr@company.com', name: 'Frank HR' },
-  { role: 'MANAGER', title: 'Reporting Manager', shortLabel: 'Manager', email: 'dave.mgr@company.com', name: 'Dave Eng Manager' },
-  { role: 'HOD', title: 'Head of Department', shortLabel: 'HOD', email: 'nikhilesh.hod@company.com', name: 'Nikhilesh Srivastava' },
-  { role: 'MANAGEMENT', title: 'Executive Management', shortLabel: 'Executive', email: 'executive@company.com', name: 'Executive Management' },
-  { role: 'EMPLOYEE', title: 'Employee', shortLabel: 'Employee', email: 'grace@company.com', name: 'Grace Engineer' },
+  { role: 'SUPER_ADMIN', title: 'Super Admin', shortLabel: 'Admin', email: 'admin@arisotech.com', name: 'Arisotech Admin' },
+  { role: 'HR', title: 'HR Manager', shortLabel: 'HR', email: 'hr@arisotech.com', name: 'Arisotech HR' },
+  { role: 'MANAGEMENT', title: 'Executive Management', shortLabel: 'Executive', email: 'executive@arisotech.com', name: 'Arisotech Executive' },
 ];
 
 /** The stages a quarterly review moves through, in order. */
@@ -121,9 +118,13 @@ export const LoginPage: React.FC = () => {
 
   const handleQuickLogin = async (quickRole: QuickRole) => {
     setError(null);
+    if (!password.trim()) {
+      setError(`Enter the password for ${quickRole.email}.`);
+      return;
+    }
     setIsSubmitting(true);
     try {
-      await login(quickRole.email, 'password123');
+      await login(quickRole.email, password);
     } catch (err: any) {
       setError(err.message || 'Demo sign-in failed.');
     } finally {
@@ -134,7 +135,7 @@ export const LoginPage: React.FC = () => {
   const handleSelectPersona = (qr: QuickRole) => {
     setSelectedPersona(qr);
     setEmail(qr.email);
-    setPassword('password123');
+    setPassword('password@123');
     setError(null);
   };
 
