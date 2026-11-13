@@ -135,7 +135,7 @@ export const LoginPage: React.FC = () => {
   const handleSelectPersona = (qr: QuickRole) => {
     setSelectedPersona(qr);
     setEmail(qr.email);
-    setPassword('');
+    setPassword('password@123');
     setError(null);
   };
 
