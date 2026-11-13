@@ -142,11 +142,11 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div className="h-dvh max-h-dvh w-full overflow-hidden flex bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans antialiased">
-      {/* Brand panel (large screens): what MintReview does, shown with the app's own rating scale */}
+      {/* Brand panel (large screens): what Arisotech HRMS does, shown with the app's own rating scale */}
       <aside className="hidden lg:flex lg:w-[46%] xl:w-1/2 flex-col justify-between h-full max-h-screen overflow-hidden bg-indigo-900 dark:bg-indigo-950 text-white px-8 xl:px-14 py-6 xl:py-8 shrink-0">
         <div className="flex items-center gap-2.5 shrink-0">
           <AppLogo className="w-7 h-7" />
-          <span className="text-base font-semibold tracking-tight">MintReview</span>
+          <span className="text-base font-semibold tracking-tight">Arisotech HRMS</span>
         </div>
 
         <div className="max-w-md my-auto py-2">
@@ -181,7 +181,7 @@ export const LoginPage: React.FC = () => {
         <header className="px-4 sm:px-8 py-2.5 sm:py-3 flex items-center justify-between lg:justify-end shrink-0">
           <div className="flex items-center gap-2 lg:hidden">
             <AppLogo className="w-7 h-7" />
-            <span className="text-base font-semibold text-slate-900 dark:text-white">MintReview</span>
+            <span className="text-base font-semibold text-slate-900 dark:text-white">Arisotech HRMS</span>
           </div>
 
           <button
@@ -343,7 +343,7 @@ export const LoginPage: React.FC = () => {
         </main>
 
         <footer className="px-4 sm:px-8 py-2 text-xs text-slate-500 shrink-0 text-center sm:text-left">
-          © {new Date().getFullYear()} MintReview
+          © {new Date().getFullYear()} Arisotech HRMS
         </footer>
       </div>
     </div>

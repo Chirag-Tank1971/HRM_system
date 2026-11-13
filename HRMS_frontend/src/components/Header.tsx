@@ -193,7 +193,7 @@ export const Header: React.FC<HeaderProps> = ({
                 className="flex items-center gap-2.5 shrink-0 cursor-pointer text-left rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
               >
                 <AppLogo className="w-7 h-7" />
-                <span className="text-sm font-semibold text-slate-900 dark:text-white">MintReview</span>
+                <span className="text-sm font-semibold text-slate-900 dark:text-white">Arisotech HRMS</span>
               </button>
 
               {/* Enterprise Location Breadcrumbs */}

@@ -1,5 +1,5 @@
 {
-    "name": "appraisal-backend",
+    "name": "arisotech-hrms-backend",
     "type": "module",
     "scripts": {
         "dev": "tsx watch server.ts",

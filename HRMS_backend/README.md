@@ -1,4 +1,4 @@
-# 🏢 Enterprise Performance & Appraisal Management System — Backend API
+# Arisotech HRMS — Backend API
 
 Enterprise-grade Node.js & Express backend for managing multi-cohort employee performance reviews, 4-quarter KRA evaluations, annual salary increments, digital letter generation, 9-box talent matrix calibration, and audit logging.
 

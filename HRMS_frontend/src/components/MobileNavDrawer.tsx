@@ -136,7 +136,7 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
         <div className="px-3.5 py-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <AppLogo className="w-7 h-7" />
-            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">MintReview</h2>
+            <h2 className="text-sm font-semibold text-slate-900 dark:text-white">Arisotech HRMS</h2>
           </div>
 
           <button

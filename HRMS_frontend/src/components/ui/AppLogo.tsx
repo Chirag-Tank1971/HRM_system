@@ -9,7 +9,7 @@ interface AppLogoProps {
 /** Application logo (served from /public/mainlogo.png). */
 export const AppLogo: React.FC<AppLogoProps> = ({
   className = 'w-8 h-8',
-  alt = 'MintReview',
+  alt = 'Arisotech HRMS',
 }) => (
   <img
     src="/mainlogo.png"

@@ -1,4 +1,4 @@
-# 💻 Enterprise Performance & Appraisal Management System — Frontend Client
+# 💻 Arisotech HRMS — Frontend Client
 
 Modern, responsive React 19 + TypeScript Single Page Application (SPA) for Enterprise Performance Reviews, Employee Self-Service (ESS), Calibration Matrix, Sales Champions Leaderboard, and Appraisal Management.
 
@@ -21,7 +21,7 @@ Modern, responsive React 19 + TypeScript Single Page Application (SPA) for Enter
 ## 📂 Frontend Directory Structure
 
 ```text
-Qreview_frontend/
+HRMS_frontend/
 ├── public/                         # Static assets (favicons, logos, badges)
 ├── src/
 │   ├── main.tsx                    # React DOM root entry point
@@ -70,7 +70,7 @@ Qreview_frontend/
 
 ## ⚙️ Environment Variables Setup
 
-Create a `.env` file in the root of the `Qreview_frontend/` directory:
+Create a `.env` file in the root of the `HRMS_frontend/` directory:
 
 ```env
 # Backend API Base URL
@@ -78,7 +78,7 @@ Create a `.env` file in the root of the `Qreview_frontend/` directory:
 VITE_API_BASE_URL=http://localhost:3000
 
 # For production on Vercel (pointing to live Render backend):
-# VITE_API_BASE_URL=https://mintreviewsystem.onrender.com
+# VITE_API_BASE_URL=https://your-backend.onrender.com
 ```
 
 ---
@@ -129,11 +129,11 @@ You can sign in using any of the enterprise test personas directly from the logi
 ## ☁️ Deployment Guide (Vercel / Netlify / Cloudflare Pages)
 
 1. **Framework Preset:** `Vite`
-2. **Root Directory:** `Qreview_frontend` (or `./` if deployed from frontend repo)
+2. **Root Directory:** `HRMS_frontend` (or `./` if deployed from frontend repo)
 3. **Build Command:** `npm run build`
 4. **Output Directory:** `dist`
 5. **Environment Variable:**
-   - Add `VITE_API_BASE_URL` with your live Render backend API URL (e.g., `https://mintreviewsystem.onrender.com`).
+   - Add `VITE_API_BASE_URL` with your live Render backend API URL (e.g., `https://your-backend.onrender.com`).
 6. **SPA Routing Configuration (`vercel.json`):**
    ```json
    {

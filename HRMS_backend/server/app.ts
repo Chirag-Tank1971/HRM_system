@@ -219,7 +219,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   // Serve compiled frontend assets if available
   if (options.serveFrontend !== false) {
     const possibleDistPaths = [
-      path.resolve(process.cwd(), '../Qreview_frontend/dist'),
+      path.resolve(process.cwd(), '../HRMS_frontend/dist'),
       path.resolve(process.cwd(), '../frontend/dist'),
       path.resolve(process.cwd(), 'dist/public'),
       path.resolve(process.cwd(), 'dist'),

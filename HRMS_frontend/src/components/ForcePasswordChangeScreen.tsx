@@ -59,8 +59,8 @@ export const ForcePasswordChangeScreen: React.FC = () => {
         <div className="flex items-center gap-3 mb-8 justify-center">
           <AppLogo className="w-10 h-10" />
           <div>
-            <p className="text-sm font-bold text-white tracking-tight leading-none">MintReview system</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">MintReview</p>
+            <p className="text-sm font-bold text-white tracking-tight leading-none">Arisotech HRMS</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">Arisotech HRMS</p>
           </div>
         </div>
         <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 p-8 space-y-6">

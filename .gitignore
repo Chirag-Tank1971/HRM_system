@@ -107,7 +107,7 @@ test-results/
 *.tsbuildinfo
 
 # Local one-off maintenance scripts (e.g. account backfill)
-Qreview_backend/scripts/
+HRMS_backend/scripts/
 
 # =========================
 # Generated files

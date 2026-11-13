@@ -1,6 +1,6 @@
-# 🏢 QReview — Enterprise Performance Management & Annual Appraisal System
+# 🏢 Arisotech HRMS — Enterprise Performance Management & Annual Appraisal System
 
-> The app is branded **MintReview** in the browser (page title, logo); `QReview` is the repository name.
+> **Arisotech HRMS** is the product name shown in the browser (page title, logo). The repository is `HRM_system`.
 
 A modern, full-stack enterprise performance management and annual appraisal platform built with **React 19**, **Express.js**, **TypeScript**, and **MongoDB**. Supports multi-cohort review cycles, 4-quarter rolling performance appraisals, automated Performance Improvement Plans (PIP) with a 2-step fast-flow, 9-box talent matrix calibration, bell-curve budget normalization, and digital appraisal letter workflows.
 
@@ -53,8 +53,8 @@ graph TD
 ## 📂 Repository Structure
 
 ```text
-Review_system/
-├── Qreview_backend/                 # Node.js + Express + TypeScript Backend
+HRMS/
+├── HRMS_backend/                 # Node.js + Express + TypeScript Backend
 │   ├── server.ts                    # Server bootstrap, CORS & rate limit configuration
 │   ├── server/
 │   │   ├── db.ts                    # Database abstraction (MongoDB + persistence layer)
@@ -95,7 +95,7 @@ Review_system/
 │   ├── package.json
 │   └── tsconfig.json
 │
-├── Qreview_frontend/                # React 19 + Vite Frontend Application
+├── HRMS_frontend/                # React 19 + Vite Frontend Application
 │   ├── src/
 │   │   ├── App.tsx                  # Root application router and shell
 │   │   ├── config/
@@ -269,7 +269,7 @@ Ensure you have the following installed:
 
 ```bash
 # Navigate to the backend directory
-cd Qreview_backend
+cd HRMS_backend
 
 # Install dependencies
 npm install
@@ -297,7 +297,7 @@ In a new terminal window:
 
 ```bash
 # Navigate to the frontend directory
-cd Qreview_frontend
+cd HRMS_frontend
 
 # Install dependencies
 npm install
@@ -315,7 +315,7 @@ Open your browser and navigate to `http://localhost:5173` to access the applicat
 
 ## ⚙️ Environment Variables
 
-### Backend (`Qreview_backend/.env`)
+### Backend (`HRMS_backend/.env`)
 
 ```env
 # Server Port (Default: 3000)
@@ -333,7 +333,7 @@ JWT_REFRESH_SECRET=
 
 # Allowed CORS Origins (comma-separated; supports * and *.domain.com patterns).
 # Ignored outside production, where every origin is allowed.
-ALLOWED_ORIGINS=http://localhost:5173,https://qreview-frontend.vercel.app
+ALLOWED_ORIGINS=http://localhost:5173,https://your-frontend-domain.vercel.app
 
 # Public URL of the frontend, used for links inside emails
 APP_URL=http://localhost:5173
@@ -366,7 +366,7 @@ RESEND_API_KEY=your_resend_api_key_here
 RESEND_FROM=
 ```
 
-### Frontend (`Qreview_frontend/.env`)
+### Frontend (`HRMS_frontend/.env`)
 
 ```env
 # Optional: Backend API Base URL, without /api (defaults to http://localhost:3000 on localhost, relative /api in production)
@@ -380,7 +380,7 @@ VITE_ENABLE_DEMO_PERSONAS=false
 
 ## 📜 Available Scripts
 
-### Backend (`Qreview_backend`)
+### Backend (`HRMS_backend`)
 
 | Command | Description |
 | :--- | :--- |
@@ -390,7 +390,7 @@ VITE_ENABLE_DEMO_PERSONAS=false
 | `npm run typecheck` | Validates TypeScript types across the backend codebase (`tsc --noEmit`) |
 | `npm run lint` | Runs ESLint checks on backend files |
 
-### Frontend (`Qreview_frontend`)
+### Frontend (`HRMS_frontend`)
 
 | Command | Description |
 | :--- | :--- |

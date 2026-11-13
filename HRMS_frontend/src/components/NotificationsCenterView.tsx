@@ -503,7 +503,7 @@ export const NotificationsCenterView: React.FC<NotificationsCenterViewProps> = (
     <div className="space-y-6">
       <PageHeader
         title="Notifications"
-        description="Tasks waiting for you, updates on reviews and appraisals, and the emails MintReview has sent."
+        description="Tasks waiting for you, updates on reviews and appraisals, and the emails Arisotech HRMS has sent."
       />
 
       {/* Top Metrics Cards */}

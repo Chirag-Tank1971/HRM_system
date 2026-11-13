@@ -417,7 +417,7 @@ function AppContent() {
         {/* Footer */}
         <footer className="border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-3 mt-auto mb-16 md:mb-0">
           <div className="w-full px-4 sm:px-6 lg:px-8 text-center text-xs text-slate-500 dark:text-slate-400 flex items-center">
-            <span>MintReview</span>
+            <span>Arisotech HRMS</span>
           </div>
         </footer>
         </div>

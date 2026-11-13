@@ -55,7 +55,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({ isOpen, onClose }) => {
       <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl w-full max-w-md shadow-xl overflow-hidden p-6 space-y-6 text-slate-800 dark:text-slate-200 ${cardClass}`}>
         <div className="text-center space-y-2">
           <Lock className="w-5 h-5 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden="true" />
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sign in to MintReview</h2>
+          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Sign in to Arisotech HRMS</h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">
             Enter your corporate email and password to access the system
           </p>
