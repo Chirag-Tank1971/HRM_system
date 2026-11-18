@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { UserRole } from '../types';
-import { Eye, EyeOff, AlertCircle, Loader2, Sun, Moon, FileText, UserRound, Layers, CircleCheck, ChevronRight } from 'lucide-react';
+import { Eye, EyeOff, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
 
 import { AppLogo } from './ui/AppLogo';
+import { InteractiveKraCard, InteractiveReviewPath, LoginShowcase } from './login/LoginShowcase';
 import { getCompanyCode, setCompanyCode } from '../services/api';
 import { hrApi } from '../services/hrApi';
 
@@ -26,76 +27,6 @@ const QUICK_ROLES: QuickRole[] = [
   { role: 'HR', title: 'HR Manager', shortLabel: 'HR', email: 'hr@arisotech.com', name: 'Arisotech HR' },
   { role: 'MANAGEMENT', title: 'Executive Management', shortLabel: 'Executive', email: 'executive@arisotech.com', name: 'Arisotech Executive' },
 ];
-
-/** The stages a quarterly review moves through, in order. */
-const REVIEW_PATH = [
-  { label: 'Self-assessment', icon: FileText },
-  { label: 'Manager', icon: UserRound },
-  { label: 'HOD', icon: Layers },
-  { label: 'HR approval', icon: CircleCheck },
-];
-
-const SAMPLE_SCALE = ['Needs improvement', 'Developing', 'Meets', 'Exceeds', 'Outstanding'];
-const SAMPLE_RATING = 3;
-
-/**
- * Illustration for the brand panel: one KRA scored on the app's real 1–5 scale. It is
- * decorative (aria-hidden) and labelled as an example, never presented as live data.
- */
-const ExampleKraCard: React.FC = () => (
-  <div aria-hidden="true" className="rounded-2xl bg-white text-slate-900 p-4 xl:p-5 shadow-2xl shadow-indigo-950/40">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="text-xs text-slate-500">Example KRA</div>
-        <div className="mt-0.5 text-sm xl:text-base font-semibold truncate">Customer onboarding within SLA</div>
-      </div>
-      <div className="text-right shrink-0">
-        <div className="text-sm xl:text-base font-bold tabular-nums">+0.90 pts</div>
-        <div className="text-xs text-slate-500 tabular-nums">30% weight</div>
-      </div>
-    </div>
-
-    <div className="mt-3.5 grid grid-cols-5 gap-1.5">
-      {SAMPLE_SCALE.map((label, i) => {
-        const value = i + 1;
-        const isSelected = value === SAMPLE_RATING;
-        return (
-          <div key={value} className="relative rounded-lg bg-slate-100 overflow-hidden px-2 py-2 min-h-[3.25rem]">
-            {isSelected && (
-              <span className="login-fill absolute inset-0 bg-indigo-600" style={{ animationDelay: '450ms' }} />
-            )}
-            <div className={`relative ${isSelected ? 'text-white' : 'text-slate-700'}`}>
-              <div className="text-sm font-bold leading-none tabular-nums">{value}</div>
-              <div className={`mt-1 text-[11px] leading-tight ${isSelected ? 'text-indigo-50' : 'text-slate-500'}`}>{label}</div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  </div>
-);
-
-/** How a review moves, drawn as a strip of steps under the example card. */
-const ReviewPath: React.FC = () => (
-  <ol
-    aria-label="How a review moves"
-    className="mt-4 flex items-center justify-between gap-1 rounded-2xl bg-white/[0.07] ring-1 ring-inset ring-white/10 px-3 xl:px-5 py-3.5"
-  >
-    {REVIEW_PATH.map(({ label, icon: Icon }, i) => (
-      <li key={label} className="contents">
-        <span className="flex flex-col items-center gap-1.5 min-w-0 text-center">
-          <span className="w-9 h-9 rounded-full bg-white/10 ring-1 ring-white/20 flex items-center justify-center">
-            <Icon className="w-4 h-4 text-white" aria-hidden="true" />
-          </span>
-          <span className="text-xs font-medium text-indigo-50 whitespace-nowrap">{label}</span>
-        </span>
-        {i < REVIEW_PATH.length - 1 && (
-          <ChevronRight className="w-4 h-4 text-indigo-200/60 shrink-0 -mt-5" aria-hidden="true" />
-        )}
-      </li>
-    ))}
-  </ol>
-);
 
 /** Soft diagonal light planes behind the brand panel. Purely decorative. */
 const BrandBackdrop: React.FC = () => (
@@ -198,6 +129,7 @@ export const LoginPage: React.FC = () => {
       {/* Brand panel (large screens): what Arisotech HRMS does, shown with the app's own rating scale */}
       <aside className="relative hidden lg:flex lg:w-1/2 flex-col h-full overflow-hidden bg-indigo-900 dark:bg-indigo-950 text-white px-10 xl:px-16 py-8 shrink-0">
         <BrandBackdrop />
+        <LoginShowcase />
 
         <div className="relative flex items-center gap-2.5 shrink-0">
           <AppLogo className="w-8 h-8" />
@@ -216,10 +148,10 @@ export const LoginPage: React.FC = () => {
           </p>
 
           <div className="mt-7">
-            <ExampleKraCard />
+            <InteractiveKraCard />
           </div>
 
-          <ReviewPath />
+          <InteractiveReviewPath />
         </div>
       </aside>
 
