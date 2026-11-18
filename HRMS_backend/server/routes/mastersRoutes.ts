@@ -1565,6 +1565,25 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
       if (roleError) return res.status(403).json({ error: roleError });
     }
 
+    // Only a Super Admin may change the sign-in of a Super Admin or HR account (password,
+    // email, enabling/disabling login, or deactivating the employee). Otherwise HR could take
+    // over an admin account without ever touching its role.
+    const touchesLogin =
+      Boolean(initialPassword && String(initialPassword).trim()) ||
+      provisionLogin !== undefined ||
+      (email !== undefined && String(email).trim().toLowerCase() !== String(emp.email || '').toLowerCase()) ||
+      (status !== undefined && status !== emp.status);
+    if (
+      touchesLogin &&
+      existingUser &&
+      (existingUser.role === 'SUPER_ADMIN' || existingUser.role === 'HR') &&
+      req.user?.role !== 'SUPER_ADMIN'
+    ) {
+      return res.status(403).json({
+        error: 'Only a Super Admin can change the password, email, login or status of a Super Admin or HR account.',
+      });
+    }
+
     if (provisionLogin !== undefined) {
       const isLoginEnabled = Boolean(provisionLogin);
       updateData.hasLoginAccount = isLoginEnabled;

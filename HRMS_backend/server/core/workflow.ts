@@ -46,6 +46,8 @@ export interface WorkflowInstance {
   summary: string;
   requesterUserId: string;
   requesterEmployeeId?: string;
+  /** The account of the person the request is about (differs from the requester when HR applies on someone's behalf). */
+  subjectUserId?: string;
   requesterName: string;
   status: WorkflowStatus;
   currentStep: number;
@@ -145,8 +147,9 @@ async function resolveApprovers(step: WorkflowStepDefinition, employee: any | nu
  * manager set, or the requester is their own manager) it falls back to HR, then to Super
  * Admins, so a request can never be stuck with no one able to decide it.
  */
-async function approversFor(step: WorkflowStepDefinition, employee: any | null, requesterUserId: string): Promise<Approver[]> {
-  const notRequester = (list: Approver[]) => list.filter((a) => a.id !== requesterUserId);
+async function approversFor(step: WorkflowStepDefinition, employee: any | null, excludedUserIds: string[]): Promise<Approver[]> {
+  // Neither the person who raised the request nor the person it is about may approve it.
+  const notRequester = (list: Approver[]) => list.filter((a) => !excludedUserIds.includes(a.id));
   let found = notRequester(await resolveApprovers(step, employee));
   if (!found.length && step.approverType !== 'HR') found = notRequester(await activeUsers({ role: 'HR' }));
   if (!found.length) found = notRequester(await activeUsers({ role: 'SUPER_ADMIN' }));
@@ -191,13 +194,17 @@ export async function startWorkflow(input: StartWorkflowInput): Promise<Workflow
   const employee = input.requester.employeeId
     ? await getDbCollection('employees').findOne({ id: input.requester.employeeId })
     : null;
+  const subjectUser: User | null = input.requester.employeeId
+    ? await getDbCollection('users').findOne({ employeeId: input.requester.employeeId })
+    : null;
+  const excluded = [input.requester.id, subjectUser?.id].filter((x): x is string => Boolean(x));
 
   const applicable = definition.filter((s) => !s.when || Number(context[s.when.field]) >= s.when.gte);
   const stepDefs = applicable.length ? applicable : definition.slice(0, 1);
 
   const steps: WorkflowStep[] = [];
   for (const [i, def] of stepDefs.entries()) {
-    const approvers = await approversFor(def, employee, input.requester.id);
+    const approvers = await approversFor(def, employee, excluded);
     steps.push({
       order: i,
       approverType: def.approverType,
@@ -219,6 +226,7 @@ export async function startWorkflow(input: StartWorkflowInput): Promise<Workflow
     summary: input.summary,
     requesterUserId: input.requester.id,
     requesterEmployeeId: input.requester.employeeId,
+    subjectUserId: subjectUser?.id,
     requesterName: input.requester.name,
     status: 'PENDING',
     currentStep: 0,
@@ -261,14 +269,18 @@ const OVERRIDE_ROLES: UserRole[] = ['SUPER_ADMIN', 'HR'];
 /** Records an approver's decision and advances or closes the workflow. */
 export async function decideWorkflow(
   instanceId: string,
-  actor: Pick<User, 'id' | 'name' | 'role'>,
+  actor: Pick<User, 'id' | 'name' | 'role' | 'employeeId'>,
   decision: 'APPROVE' | 'REJECT',
   comment?: string
 ): Promise<WorkflowInstance> {
   const instance: WorkflowInstance | null = await getDbCollection('workflowInstances').findOne({ id: instanceId });
   if (!instance) throw new WorkflowError('Request not found.', 404);
   if (instance.status !== 'PENDING') throw new WorkflowError(`This request is already ${instance.status.toLowerCase()}.`, 409);
-  if (instance.requesterUserId === actor.id) throw new WorkflowError('You cannot decide your own request.', 403);
+  const isOwn =
+    instance.requesterUserId === actor.id ||
+    instance.subjectUserId === actor.id ||
+    (!!actor.employeeId && actor.employeeId === instance.requesterEmployeeId);
+  if (isOwn) throw new WorkflowError('You cannot decide your own request.', 403);
 
   const isNamedApprover = instance.pendingApproverIds.includes(actor.id);
   const isOverride = !isNamedApprover && OVERRIDE_ROLES.includes(actor.role);
