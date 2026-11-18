@@ -16,6 +16,7 @@ import { Employee, Department, Designation, Cycle, User, UserRole } from '../../
 import { syncEmployeeAppraisalsAndReviews, resyncUnscoredReviewKraSnapshots } from '../syncHelpers.js';
 import { sendNotificationEmail } from '../services/emailService.js';
 import { renderEmployeeWelcomeEmail } from '../services/emailTemplates.js';
+import { ensureDefaultCycles } from '../core/cycles.js';
 
 export const mastersRouter = express.Router();
 
@@ -615,6 +616,8 @@ mastersRouter.delete('/locations/:name', requireRoles('SUPER_ADMIN', 'HR'), asyn
  */
 mastersRouter.get('/cycles', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    // Every company has the June and September appraisal cycles.
+    await ensureDefaultCycles();
     const cyclesCol = getDbCollection('cycles');
     const filter = req.query.includeInactive === 'true' ? {} : { active: { $ne: false } };
     const cycles = await (await cyclesCol.find(filter)).toArray();

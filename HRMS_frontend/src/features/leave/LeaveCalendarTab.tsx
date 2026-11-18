@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Award, ChevronLeft, ChevronRight } from 'lucide-react';
+import { api } from '../../services/api';
+import type { Cycle } from '../../types';
 import { Button } from '../../components/ui/Button';
 import { toast } from '../../context/ToastContext';
 import {
@@ -92,8 +94,11 @@ export const LeaveCalendarTab: React.FC<LeaveCalendarTabProps> = ({ myEmployeeId
   const [holidaysByYear, setHolidaysByYear] = useState<Record<number, Holiday[]>>({});
   const [leaves, setLeaves] = useState<LeaveRequest[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [cycles, setCycles] = useState<Cycle[]>([]);
 
   const [year, monthNumber] = month.split('-').map(Number);
+  // Appraisal cycles whose annual appraisal falls in the month on screen (June, September).
+  const appraisalCycles = cycles.filter((c) => c.active !== false && c.appraisalMonth === monthNumber);
 
   // The grid always shows whole weeks: from the Sunday on or before the 1st to the Saturday
   // on or after the last day of the month.
@@ -113,6 +118,10 @@ export const LeaveCalendarTab: React.FC<LeaveCalendarTabProps> = ({ myEmployeeId
       .getCompany()
       .then((c) => setWeeklyOffDays(c.settings.weeklyOffDays || [0]))
       .catch(() => undefined); // falls back to Sunday
+    api
+      .getCycles()
+      .then(setCycles)
+      .catch(() => undefined); // the calendar works without the appraisal markers
   }, []);
 
   useEffect(() => {
@@ -190,6 +199,18 @@ export const LeaveCalendarTab: React.FC<LeaveCalendarTabProps> = ({ myEmployeeId
             <Button variant="ghost" icon={ChevronRight} aria-label="Next month" onClick={() => shiftMonth(1)} />
           </div>
         </div>
+
+        {appraisalCycles.length > 0 && (
+          <div className="mx-2 sm:mx-3 mt-2 sm:mt-3 flex items-start gap-2.5 rounded-lg bg-indigo-500/10 border border-indigo-500/30 px-3 py-2.5 text-sm text-indigo-900 dark:text-indigo-100">
+            <Award className="w-4 h-4 mt-0.5 shrink-0 text-indigo-600 dark:text-indigo-300" aria-hidden="true" />
+            <span>
+              <span className="font-semibold">Appraisal month</span> for the {appraisalCycles.map((c) => c.name).join(' and ')}.
+              <span className="block text-xs text-indigo-800/80 dark:text-indigo-200/80">
+                {appraisalCycles.map((c) => c.description).filter(Boolean).join(' ') || 'Annual appraisals for this cycle are due this month.'}
+              </span>
+            </span>
+          </div>
+        )}
 
         <div className={`p-2 sm:p-3 transition-opacity ${isLoading ? 'opacity-60' : ''}`}>
           <div className="grid grid-cols-7 text-center text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 pb-1.5">

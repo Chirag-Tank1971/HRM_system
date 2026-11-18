@@ -21,6 +21,7 @@ import {
   AuthenticatedRequest,
 } from '../auth.js';
 import { currentTenantId } from '../core/tenantContext.js';
+import { ensureDefaultCycles } from '../core/cycles.js';
 
 /**
  * Platform administration: managing the companies (tenants) hosted on this installation.
@@ -102,6 +103,7 @@ platformRouter.post('/tenants', async (req, res) => {
         tokenVersion: 1,
         createdAt: now,
       });
+      await ensureDefaultCycles();
       await getDbCollection('systemConfig').insertOne({
         id: 'global_config',
         hodApprovalEnabled: false,

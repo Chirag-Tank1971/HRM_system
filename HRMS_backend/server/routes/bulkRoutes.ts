@@ -4,6 +4,7 @@ import { getDbCollection } from '../db.js';
 import { forEachTenant } from '../core/tenants.js';
 import { AuthenticatedRequest, authenticateToken, generateTempPassword, requireRoles, roleAssignmentError } from '../auth.js';
 import { sendPasswordLink } from '../core/passwordLinks.js';
+import { ensureDefaultCycles } from '../core/cycles.js';
 import { resyncUnscoredReviewKraSnapshots, syncEmployeeAppraisalsAndReviews } from '../syncHelpers.js';
 import {
   BulkDatasetType,
@@ -590,6 +591,7 @@ bulkRouter.post('/validate/:type', async (req: AuthenticatedRequest, res: Respon
     const existingEmployees = await (await employeesCol.find({})).toArray();
     const existingDepartments = await (await departmentsCol.find({})).toArray();
     const existingDesignations = await (await designationsCol.find({})).toArray();
+    await ensureDefaultCycles();
     const existingCycles = await (await cyclesCol.find({ active: { $ne: false } })).toArray();
 
     const empCodeMap = new Set(existingEmployees.map((e) => String(e.employeeCode || '').trim().toUpperCase()));
@@ -874,6 +876,7 @@ bulkRouter.post('/import/:type', async (req: AuthenticatedRequest, res: Response
     // Get masters for lookup
     const allDepartments = await (await departmentsCol.find({})).toArray();
     const allDesignations = await (await designationsCol.find({})).toArray();
+    await ensureDefaultCycles();
     const allCycles = await (await cyclesCol.find({ active: { $ne: false } })).toArray();
 
     const findOrCreateDept = async (deptInput: string) => {
