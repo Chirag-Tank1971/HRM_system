@@ -1241,6 +1241,10 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
       return res.status(404).json({ error: 'Employee not found.' });
     }
 
+    if (email !== undefined && email !== null && typeof email !== 'string') {
+      return res.status(400).json({ error: 'Email must be text.' });
+    }
+
     const updateData: any = {};
     if (name !== undefined) updateData.name = name.trim();
     // Handle email update with format and uniqueness check
@@ -1577,8 +1581,11 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
 
     const setsPassword =
       Boolean(provisionLogin) && typeof initialPassword === 'string' && initialPassword.trim().length >= 6;
+    // Same rule as the write below: only a validated, non-blank email (updateData.email) is ever
+    // saved to the login. Any other email value sent for these accounts is treated as a change.
+    const loginEmail = String(existingUser?.email || emp.email || '').toLowerCase();
     const changesEmail =
-      typeof email === 'string' && email.trim() !== '' && email.trim().toLowerCase() !== String(emp.email || '').toLowerCase();
+      email !== undefined && email !== null && (updateData.email ? updateData.email !== loginEmail : String(email).trim() !== '');
     const touchesLogin = setsPassword || changesEmail || resultingActive !== currentlyActive;
     if (
       touchesLogin &&
@@ -1691,7 +1698,8 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
 
     if (email !== undefined || name !== undefined) {
       const userUpdate: any = {};
-      if (email) userUpdate.email = email.trim().toLowerCase();
+      // Only the validated value from above; never the raw request field.
+      if (updateData.email) userUpdate.email = updateData.email;
       if (name) userUpdate.name = name.trim();
       if (existingUser) {
         await usersCol.updateOne({ id: existingUser.id }, { $set: userUpdate });
