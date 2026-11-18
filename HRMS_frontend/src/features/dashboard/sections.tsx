@@ -98,19 +98,33 @@ export interface CycleInfo {
 
 export const TodayStrip: React.FC<{ insights: DashboardInsights | null; cycle: CycleInfo | null; onNavigate: Navigate }> = ({ insights, cycle, onNavigate }) => {
   const approvals = insights?.approvalsPending ?? 0;
+  const myOpen = insights?.myOpenRequests ?? 0;
+  // People who never approve anything see their own requests here instead.
+  const showApprovals = approvals > 0 || insights?.scope !== 'SELF';
   const away = insights?.awayToday ?? [];
   const holiday = insights?.upcomingHolidays[0];
   return (
     <section aria-label="Today" className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-      <TodayTile
-        icon={Inbox}
-        label="Approvals"
-        delay={0}
-        tone={approvals ? 'attention' : 'default'}
-        value={approvals ? `${plural(approvals, 'request')} waiting` : 'All caught up'}
-        detail={approvals ? 'Waiting for your decision' : insights?.myOpenRequests ? `${plural(insights.myOpenRequests, 'request')} of yours in progress` : 'Nothing needs your approval'}
-        onClick={() => onNavigate('approvals')}
-      />
+      {showApprovals ? (
+        <TodayTile
+          icon={Inbox}
+          label="Approvals"
+          delay={0}
+          tone={approvals ? 'attention' : 'default'}
+          value={approvals ? `${plural(approvals, 'request')} waiting` : 'All caught up'}
+          detail={approvals ? 'Waiting for your decision' : myOpen ? `${plural(myOpen, 'request')} of yours in progress` : 'Nothing needs your approval'}
+          onClick={() => onNavigate('approvals')}
+        />
+      ) : (
+        <TodayTile
+          icon={Inbox}
+          label="My requests"
+          delay={0}
+          value={myOpen ? `${plural(myOpen, 'request')} in progress` : 'No open requests'}
+          detail={myOpen ? 'Waiting for approval' : 'Apply for leave from the Leave page'}
+          onClick={() => onNavigate('leave')}
+        />
+      )}
       <TodayTile
         icon={Plane}
         label="Away today"

@@ -36,7 +36,10 @@ export interface NavItemConfig {
   /** Mobile drawer only — a one-line description under the label. */
   subtitle?: string | ((role?: UserRole) => string);
   icon: ComponentType<{ className?: string }>;
+  /** Roles that may open the page (links, notifications, typed URL). */
   roles: UserRole[];
+  /** Roles that see it in the sidebar and mobile menu. Defaults to `roles`. */
+  menuRoles?: UserRole[];
   isAiBadge?: boolean;
 }
 
@@ -96,6 +99,10 @@ export const NAV_ITEMS: NavItemConfig[] = [
     subtitle: 'Requests waiting for your decision',
     icon: Inbox,
     roles: ['SUPER_ADMIN', 'HR', 'REPORTING_MANAGER', 'MANAGER', 'HOD', 'EMPLOYEE', 'MANAGEMENT'],
+    // Employees don't approve anything, so the page isn't in their menu (their own requests
+    // are under Leave). It stays reachable for the rare employee who is set as someone's
+    // approver: the dashboard and notifications link to it when something is waiting.
+    menuRoles: ['SUPER_ADMIN', 'HR', 'REPORTING_MANAGER', 'MANAGER', 'HOD', 'MANAGEMENT'],
   },
   {
     id: 'reviews',
@@ -226,8 +233,9 @@ export function getNavSubtitle(item: NavItemConfig, role?: UserRole): string | u
   return typeof item.subtitle === 'function' ? item.subtitle(role) : item.subtitle;
 }
 
+/** Whether the item appears in the sidebar / mobile menu for this role. */
 export function isNavItemVisible(item: NavItemConfig, role?: UserRole): boolean {
-  return !role || item.roles.includes(role);
+  return !role || (item.menuRoles ?? item.roles).includes(role);
 }
 
 /** The view a role lands on after login, and the fallback when a view isn't permitted. */
