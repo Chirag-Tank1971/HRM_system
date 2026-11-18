@@ -40,11 +40,13 @@ import { useModalAnimation } from '../hooks/useModalAnimation';
 import { PieChart, PieChartItem } from './ui/PieChart';
 import { PageSkeletonLoader } from './ui/PageSkeletonLoader';
 import { PageHeader } from './ui/PageHeader';
+import { PeopleInsightsPanel } from '../features/dashboard/PeopleInsightsPanel';
 import { Button } from './ui/Button';
 import { SELECT_CLASS } from './ui/formStyles';
 
 interface ManagementDashboardViewProps {
   departments?: Department[];
+  onNavigate?: (view: string) => void;
 }
 
 type TabType = 'departments' | 'trends' | 'talent' | 'appraisals' | 'workforceRisk';
@@ -56,6 +58,7 @@ const safeNum = (val: any, decimals: number = 2, fallback: string = '0.00'): str
 
 export const ManagementDashboardView: React.FC<ManagementDashboardViewProps> = ({
   departments = [],
+  onNavigate,
 }) => {
   // State: Tab navigation
   const [activeTab, setActiveTab] = useState<TabType>('departments');
@@ -837,6 +840,9 @@ export const ManagementDashboardView: React.FC<ManagementDashboardViewProps> = (
           </div>
         </div>
       </div>
+
+      {/* Live workforce and leave figures (headcount, attrition, departments, leave) */}
+      <PeopleInsightsPanel onNavigate={onNavigate} />
 
       {/* 4. Deep-Dive Section with Navigation Tabs */}
       <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">

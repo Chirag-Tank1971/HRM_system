@@ -25,7 +25,6 @@ import {
   RatingCard,
   StatRow,
   TodoCard,
-  countTodo,
 } from './DashboardKit';
 import { RATING_BAND_LABELS, daysUntil, formatMonthYear, formatShortDate } from './format';
 import { CalibrationCard, CoverageCard, DataHealthCard, EmailDeliveryCard, ReviewersBehindCard } from './InsightCards';
@@ -534,11 +533,12 @@ export const EmployeeChampsCard: React.FC<{ employeeId?: string; onNavigate: Nav
   );
 };
 
-export const EmployeeDashboard: React.FC<{ data: DashboardSummary; me: DashboardMyReview; onNavigate: Navigate; onOpenLetter: () => void }> = ({
+export const EmployeeDashboard: React.FC<{ data: DashboardSummary; me: DashboardMyReview; onNavigate: Navigate; onOpenLetter: () => void; middle?: React.ReactNode }> = ({
   data,
   me,
   onNavigate,
   onOpenLetter,
+  middle,
 }) => (
   <div className="space-y-4">
     {me.activePip && (me.activePip.status === 'ACTIVE' || me.activePip.status === 'EXTENDED') && (
@@ -549,6 +549,7 @@ export const EmployeeDashboard: React.FC<{ data: DashboardSummary; me: Dashboard
       <MyReviewCard me={me} data={data} onNavigate={onNavigate} className="lg:col-span-2" />
       <MyScoreCard me={me} />
     </div>
+    {middle}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
       <TodoCard tasks={data.tasks} onNavigate={onNavigate} className="lg:col-span-2" />
       <MyAppraisalCard me={me} onOpenLetter={onOpenLetter} />
@@ -674,7 +675,7 @@ function teamPeople(team: DashboardTeam, onNavigate: Navigate): PersonRow[] {
     });
 }
 
-export const ManagerDashboard: React.FC<{ data: DashboardSummary; team: DashboardTeam; onNavigate: Navigate }> = ({ data, team, onNavigate }) => {
+export const ManagerDashboard: React.FC<{ data: DashboardSummary; team: DashboardTeam; onNavigate: Navigate; middle?: React.ReactNode }> = ({ data, team, onNavigate, middle }) => {
   const withMe = team.members.filter((m) => m.reviewId && (m.stage || 'MANAGER') === 'MANAGER').length;
   const overdue = data.tasks.filter((t) => t.urgency === 'OVERDUE').length;
   const spread = team.ratingSpread;
@@ -729,6 +730,7 @@ export const ManagerDashboard: React.FC<{ data: DashboardSummary; team: Dashboar
           footnote={spread.unrated ? `${spread.unrated} not rated yet` : undefined}
         />
       </div>
+      {middle}
       <PeopleCard
         title="My team"
         subtitle={team.periodName ? `${team.periodName} review status · Team members on PIP listed first` : undefined}
@@ -743,7 +745,7 @@ export const ManagerDashboard: React.FC<{ data: DashboardSummary; team: Dashboar
    HOD — "My department"
    ========================================================================= */
 
-export const HodDashboard: React.FC<{ data: DashboardSummary; hod: DashboardHodOverview; onNavigate: Navigate }> = ({ data, hod, onNavigate }) => {
+export const HodDashboard: React.FC<{ data: DashboardSummary; hod: DashboardHodOverview; onNavigate: Navigate; middle?: React.ReactNode }> = ({ data, hod, onNavigate, middle }) => {
   const count = (stage: string) => hod.departmentMembers.filter((m) => m.stage === stage).length;
   const notStarted = hod.departmentMembers.filter((m) => !m.stage).length;
   const stages: PipelineStage[] = [
@@ -808,6 +810,7 @@ export const HodDashboard: React.FC<{ data: DashboardSummary; hod: DashboardHodO
         <TodoCard tasks={data.tasks} alerts={hod.alerts} onNavigate={onNavigate} className="lg:col-span-2" />
         <PipelineCard subtitle={hod.departmentName} stages={stages} />
       </div>
+      {middle}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
         <PeopleCard title="Department members" subtitle="Members on PIP and reviews waiting for you are listed first" people={people} className="lg:col-span-2" />
         <RatingCard
@@ -833,11 +836,12 @@ function hrStages(hr: DashboardHrOverview): PipelineStage[] {
   ];
 }
 
-export const HrDashboard: React.FC<{ data: DashboardSummary; hr: DashboardHrOverview; onNavigate: Navigate; onRefresh: () => void }> = ({
+export const HrDashboard: React.FC<{ data: DashboardSummary; hr: DashboardHrOverview; onNavigate: Navigate; onRefresh: () => void; middle?: React.ReactNode }> = ({
   data,
   hr,
   onNavigate,
   onRefresh,
+  middle,
 }) => {
   // Alerts that repeat an existing task (appraisals to calibrate, KRAs to assign) are dropped.
   const hasTask = (type: string) => data.tasks.some((t) => t.type === type);
@@ -854,12 +858,6 @@ export const HrDashboard: React.FC<{ data: DashboardSummary; hr: DashboardHrOver
           hint: hr.reviewsPendingHr ? 'Approve or return' : 'Nothing pending',
           tone: hr.reviewsPendingHr ? 'warn' : 'good',
           onClick: () => onNavigate('reviews'),
-        },
-        {
-          label: 'Cycle completion',
-          value: `${Math.round(hr.completionRate)}%`,
-          progress: hr.completionRate,
-          hint: `${hr.reviewsCompleted} of ${hr.reviewsTotal} reviews`,
         },
         {
           label: 'Appraisals in progress',
@@ -881,6 +879,7 @@ export const HrDashboard: React.FC<{ data: DashboardSummary; hr: DashboardHrOver
       <TodoCard tasks={data.tasks} alerts={alerts} onNavigate={onNavigate} className="lg:col-span-2" />
       <PipelineCard subtitle={`${hr.reviewsTotal} reviews this cycle`} stages={hrStages(hr)} action={{ label: 'Open', onClick: () => onNavigate('reviews') }} />
     </div>
+    {middle}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
       <CoverageCard coverage={hr.coverage} onNavigate={onNavigate} />
       <ReviewersBehindCard backlog={hr.reviewerBacklog} onReminded={onRefresh} />
@@ -913,15 +912,13 @@ export const HrDashboard: React.FC<{ data: DashboardSummary; hr: DashboardHrOver
    Admin — "System"
    ========================================================================= */
 
-export const AdminDashboard: React.FC<{ data: DashboardSummary; admin: DashboardAdminOverview; onNavigate: Navigate }> = ({
+export const AdminDashboard: React.FC<{ data: DashboardSummary; admin: DashboardAdminOverview; onNavigate: Navigate; middle?: React.ReactNode }> = ({
   data,
   admin,
   onNavigate,
+  middle,
 }) => {
   const hr = data.hr;
-  const reviewed = admin.reviewCycleProgress.reduce((s, d) => s + d.reviewed, 0);
-  const inScope = admin.reviewCycleProgress.reduce((s, d) => s + d.totalEmployees, 0);
-  const completion = hr ? hr.completionRate : pct(reviewed, inScope);
   // Attention items that repeat an existing task (appraisals to calibrate, KRAs to assign) are dropped.
   const hasTask = (type: string) => data.tasks.some((t) => t.type === type);
   const attention = admin.attentionItems
@@ -933,48 +930,9 @@ export const AdminDashboard: React.FC<{ data: DashboardSummary; admin: Dashboard
     detail: a.detail,
     link: a.link,
   }));
-  // admin.alerts only repeats what attentionItems already say (missing managers, deadline),
-  // so the attention items are the single source here.
-  const todoCount = countTodo(data.tasks, attention);
-  const joinerText = [
-    admin.newJoinersThisMonth ? `+${admin.newJoinersThisMonth} joined` : '',
-    admin.exitsThisMonth ? `−${admin.exitsThisMonth} left` : '',
-  ]
-    .filter(Boolean)
-    .join(' · ');
 
   return (
     <div className="space-y-4">
-      <StatRow
-        stats={[
-          {
-            label: 'Active employees',
-            value: String(admin.totalEmployees),
-            hint: joinerText ? `${joinerText} this month` : `${admin.totalDepartments} departments`,
-            onClick: () => onNavigate('employees'),
-          },
-          {
-            label: 'Users',
-            value: String(admin.activeUsers),
-            suffix: `/ ${admin.totalUsers}`,
-            hint: 'active accounts',
-            onClick: () => onNavigate('employees'),
-          },
-          {
-            label: 'Review cycle completion',
-            value: `${Math.round(completion)}%`,
-            progress: completion,
-            hint: admin.activePeriodName,
-            onClick: () => onNavigate('reviews'),
-          },
-          {
-            label: 'Needs attention',
-            value: String(todoCount),
-            hint: todoCount ? 'Tasks and setup issues' : 'All clear',
-            tone: todoCount ? 'warn' : 'good',
-          },
-        ]}
-      />
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
         <TodoCard title="Needs attention" tasks={data.tasks} alerts={attention} onNavigate={onNavigate} className="lg:col-span-2" />
         {hr ? (
@@ -983,6 +941,7 @@ export const AdminDashboard: React.FC<{ data: DashboardSummary; admin: Dashboard
           <DatesCard events={[]} />
         )}
       </div>
+      {middle}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
         <CoverageCard coverage={hr?.coverage ?? null} onNavigate={onNavigate} />
         <DataHealthCard items={admin.dataHealth} onNavigate={onNavigate} />

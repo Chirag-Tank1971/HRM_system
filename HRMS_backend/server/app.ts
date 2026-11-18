@@ -26,6 +26,7 @@ import { platformRouter, companyRouter } from './routes/platformRoutes.js';
 import { salaryFieldGuard } from './core/fieldProtection.js';
 import { approvalRouter } from './routes/approvalRoutes.js';
 import { leaveRouter } from './modules/leave/routes.js';
+import { insightsRouter } from './modules/insights/routes.js';
 
 export interface CreateAppOptions {
   /** Request logger used for slow-request lines (kept on in production). */
@@ -224,6 +225,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use('/api', salesChampsRouter);
   app.use('/api', approvalRouter);
   app.use('/api', leaveRouter);
+  app.use('/api', insightsRouter);
 
   // Standard JSON 404 for unmatched /api routes
   app.all('/api/*', (_req, res) => {

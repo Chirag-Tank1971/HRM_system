@@ -280,7 +280,7 @@ function AppContent() {
                     initialConfig={dashboardConfig}
                   />
                 ) : currentView === 'management' && user?.role === 'MANAGEMENT' ? (
-                  <ManagementDashboardView departments={departments} />
+                  <ManagementDashboardView departments={departments} onNavigate={(view) => handleNavigate(view)} />
                 ) : currentView === 'ai_performance' && user?.role === 'SUPER_ADMIN' ? (
                   <AiPerformanceHub currentUser={user} />
                 ) : currentView === 'appraisals' && ['SUPER_ADMIN', 'HR', 'MANAGEMENT', 'HOD', 'REPORTING_MANAGER', 'MANAGER'].includes(user?.role || '') ? (

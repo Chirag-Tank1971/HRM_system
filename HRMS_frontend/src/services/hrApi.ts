@@ -231,3 +231,58 @@ export const todayIso = () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia
 
 export const addDaysIso = (iso: string, n: number) =>
   new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86400000).toISOString().slice(0, 10);
+
+// ---------------------------------------------------------------------------
+// Dashboard insights (live workforce, leave and calendar figures)
+// ---------------------------------------------------------------------------
+export interface CountRow {
+  label: string;
+  count: number;
+}
+
+export interface DashboardInsights {
+  generatedAt: string;
+  today: string;
+  scope: 'ORG' | 'DEPARTMENT' | 'TEAM' | 'SELF';
+  scopeLabel: string;
+  approvalsPending: number;
+  myOpenRequests: number;
+  awayToday: Array<{ employeeId: string; name: string; toDate: string }>;
+  awayThisWeek: Array<{ employeeId: string; name: string; fromDate: string; toDate: string; days: number }>;
+  upcomingHolidays: Array<{ date: string; name: string; optional: boolean }>;
+  myLeave: {
+    balances: Array<{ code: string; name: string; color: string; available: number; used: number; credited: number; pending: number }>;
+    upcoming: Array<{ id: string; leaveTypeName: string; fromDate: string; toDate: string; days: number; status: string }>;
+    usedThisYear: number;
+  } | null;
+  workforce: {
+    headcount: number;
+    byStatus: { active: number; probation: number; notice: number };
+    joinedThisMonth: number;
+    leftThisMonth: number;
+    joinedLast12: number;
+    leftLast12: number;
+    attritionRate: number;
+    averageTenureYears: number;
+    trend: Array<{ month: string; label: string; headcount: number; joined: number; left: number }>;
+    byDepartment: CountRow[];
+    byGender: CountRow[];
+    byEmploymentType: CountRow[];
+    byLocation: CountRow[];
+    tenureBands: CountRow[];
+  } | null;
+  leave: {
+    pendingRequests: number;
+    daysThisMonth: number;
+    daysThisYear: number;
+    byType: Array<{ label: string; days: number }>;
+    trend: Array<{ month: string; label: string; days: number }>;
+  } | null;
+  upcoming: {
+    probationEnding: Array<{ employeeId: string; name: string; date: string }>;
+    anniversaries: Array<{ employeeId: string; name: string; date: string; years: number }>;
+    leaving: Array<{ employeeId: string; name: string; date: string | null }>;
+  } | null;
+}
+
+export const getDashboardInsights = () => apiRequest<DashboardInsights>('/dashboard/insights');

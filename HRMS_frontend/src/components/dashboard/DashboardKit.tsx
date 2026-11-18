@@ -69,7 +69,7 @@ const HINT_TONE = {
 };
 
 export const StatRow: React.FC<{ stats: Stat[] }> = ({ stats }) => (
-  <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+  <div className={cn('grid grid-cols-2 gap-3', stats.length === 3 ? 'lg:grid-cols-3' : 'lg:grid-cols-4')}>
     {stats.map((s) => {
       const Tag = s.onClick ? 'button' : 'div';
       return (

@@ -2,17 +2,27 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, RefreshCw } from 'lucide-react';
 import type { Appraisal, DashboardSummary, DashboardTaskLink } from '../../types';
 import { api } from '../../services/api';
+import { getDashboardInsights, type DashboardInsights } from '../../services/hrApi';
 import { useAuth } from '../../context/AuthContext';
 import { toast } from '../../context/ToastContext';
 import { EmptyState } from '../ui/EmptyState';
 import { PageSkeletonLoader } from '../ui/PageSkeletonLoader';
 import { AppraisalLetterModal } from '../AppraisalLetterModal';
-import { CycleStrip } from './DashboardKit';
 import { AdminDashboard, EmployeeDashboard, HodDashboard, HrDashboard, ManagerDashboard } from './RoleDashboards';
-import { daysUntil, formatShortDate, greeting } from './format';
+import { daysUntil, greeting } from './format';
 import { PageHeader } from '../ui/PageHeader';
 import { Button } from '../ui/Button';
 import { SegmentedControl } from '../ui/SegmentedControl';
+import {
+  LeaveSection,
+  MyLeaveCard,
+  SectionHeading,
+  TeamSnapshot,
+  TodayStrip,
+  UpcomingCard,
+  WorkforceSection,
+  type CycleInfo,
+} from '../../features/dashboard/sections';
 
 type Lens = 'admin' | 'hr' | 'hod' | 'team' | 'me';
 
@@ -23,6 +33,8 @@ const LENS_CTA: Partial<Record<Lens, { label: string; view: DashboardTaskLink['v
   team: { label: 'Score team reviews', view: 'reviews' },
 };
 
+const TODAY_FMT = new Intl.DateTimeFormat('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
 interface DashboardViewProps {
   onNavigate: (view: DashboardTaskLink['view'], params?: DashboardTaskLink['params']) => void;
   initialConfig?: { openLetter?: boolean } | null;
@@ -31,6 +43,7 @@ interface DashboardViewProps {
 export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, initialConfig }) => {
   const { user } = useAuth();
   const [data, setData] = useState<DashboardSummary | null>(null);
+  const [insights, setInsights] = useState<DashboardInsights | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [lens, setLens] = useState<Lens | null>(null);
@@ -39,13 +52,13 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, initia
   const load = useCallback(async () => {
     setIsLoading(true);
     setError(null);
-    try {
-      setData(await api.getDashboardSummary());
-    } catch (err: any) {
-      setError(err.message || 'Failed to load dashboard.');
-    } finally {
-      setIsLoading(false);
-    }
+    // The review summary is required; workforce and leave figures are a bonus that must not
+    // block the page if they fail.
+    const [summary, extra] = await Promise.allSettled([api.getDashboardSummary(), getDashboardInsights()]);
+    if (summary.status === 'fulfilled') setData(summary.value);
+    else setError((summary.reason as Error)?.message || 'Failed to load dashboard.');
+    if (extra.status === 'fulfilled') setInsights(extra.value);
+    setIsLoading(false);
   }, []);
 
   useEffect(() => {
@@ -112,43 +125,82 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, initia
   const activeLens: Lens = lens || defaultLens;
 
   const availableLenses: { key: Lens; label: string }[] = [];
-  if (hasAdmin) availableLenses.push({ key: 'admin', label: 'System' });
+  if (hasAdmin) availableLenses.push({ key: 'admin', label: 'Organisation' });
   if (hasHr) availableLenses.push({ key: 'hr', label: 'HR' });
   if (hasHod) availableLenses.push({ key: 'hod', label: 'Department' });
   if (hasTeam) availableLenses.push({ key: 'team', label: 'My team' });
-  if (hasMe) availableLenses.push({ key: 'me', label: 'My review' });
+  if (hasMe) availableLenses.push({ key: 'me', label: 'My work' });
 
   const firstName = (data.me?.employee.name || user?.name || '').split(' ')[0];
-  const subtitle =
-    activeLens === 'admin' && data.admin
-      ? `${data.admin.totalEmployees} employees · ${data.admin.totalDepartments} departments · ${data.admin.totalUsers} users`
-      : activeLens === 'hr' && data.hr
-      ? `${data.hr.totalEmployees} employees across ${data.hr.totalDepartments} departments`
-      : activeLens === 'hod' && data.hod
-      ? `${data.hod.departmentName} · ${data.hod.totalEmployees} employees`
-      : activeLens === 'team' && data.team
-      ? `${data.team.size} direct report${data.team.size === 1 ? '' : 's'}`
+  const scopeLine =
+    activeLens === 'hod' && data.hod
+      ? data.hod.departmentName
       : [data.me?.employee.designationName, data.me?.employee.departmentName].filter(Boolean).join(' · ');
 
-  // Cycle progress is shown for the viewer's own scope, not a global placeholder.
-  const scopedProgress =
-    activeLens === 'admin' || activeLens === 'hr'
-      ? data.hr
-        ? { label: 'of reviews completed', percent: data.hr.completionRate }
-        : undefined
-      : activeLens === 'hod' && data.hod
-      ? { label: 'of department done', percent: data.hod.completionRate }
-      : activeLens === 'team' && data.team && data.team.reviewsInPeriod > 0
-      ? { label: 'of your reviews submitted', percent: (data.team.scoredByManager / data.team.reviewsInPeriod) * 100 }
-      : undefined;
+  // Review cycle progress for the viewer's own scope, shown once, in the Today strip.
+  const cycle: CycleInfo | null = data.period
+    ? {
+        name: data.period.name,
+        daysLeft: data.period.dueDate ? daysUntil(data.period.dueDate) : undefined,
+        ...(activeLens === 'admin' || activeLens === 'hr'
+          ? data.hr
+            ? { percent: data.hr.completionRate, percentLabel: 'complete' }
+            : {}
+          : activeLens === 'hod' && data.hod
+          ? { percent: data.hod.completionRate, percentLabel: 'of department done' }
+          : activeLens === 'team' && data.team && data.team.reviewsInPeriod > 0
+          ? { percent: (data.team.scoredByManager / data.team.reviewsInPeriod) * 100, percentLabel: 'of your reviews submitted' }
+          : {}),
+      }
+    : null;
 
   const cta = LENS_CTA[activeLens];
+
+  // Live workforce and leave figures, placed between the role's actions and its review details.
+  const orgMiddle = insights && (
+    <>
+      <WorkforceSection insights={insights} onNavigate={onNavigate} />
+      <LeaveSection insights={insights} onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+        <UpcomingCard insights={insights} onNavigate={onNavigate} className={insights.myLeave ? 'lg:col-span-2' : 'lg:col-span-3'} />
+        <MyLeaveCard insights={insights} onNavigate={onNavigate} />
+      </div>
+      <SectionHeading title="Reviews and performance" />
+    </>
+  );
+  const departmentMiddle = insights && (
+    <>
+      <WorkforceSection insights={insights} onNavigate={onNavigate} compact />
+      <LeaveSection insights={insights} onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+        <UpcomingCard insights={insights} onNavigate={onNavigate} className={insights.myLeave ? 'lg:col-span-2' : 'lg:col-span-3'} />
+        <MyLeaveCard insights={insights} onNavigate={onNavigate} />
+      </div>
+      <SectionHeading title="Department reviews" />
+    </>
+  );
+  const teamMiddle = insights && (
+    <>
+      <TeamSnapshot insights={insights} onNavigate={onNavigate} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+        <UpcomingCard insights={insights} onNavigate={onNavigate} className={insights.myLeave ? 'lg:col-span-2' : 'lg:col-span-3'} />
+        <MyLeaveCard insights={insights} onNavigate={onNavigate} />
+      </div>
+      <SectionHeading title="Team reviews" />
+    </>
+  );
+  const myMiddle = insights && (
+    <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-stretch">
+      <MyLeaveCard insights={insights} onNavigate={onNavigate} />
+      <UpcomingCard insights={insights} onNavigate={onNavigate} className="lg:col-span-2" />
+    </div>
+  );
 
   return (
     <div className="space-y-4 max-w-[1400px]">
       <PageHeader
         title={`${greeting()}${firstName ? `, ${firstName}` : ''}`}
-        description={subtitle || undefined}
+        description={[TODAY_FMT.format(new Date()), scopeLine].filter(Boolean).join(' · ')}
         actions={
           <>
             {availableLenses.length > 1 && (
@@ -169,28 +221,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({ onNavigate, initia
         }
       />
 
-      {/* Cycle strip */}
-      {data.period && (
-        <CycleStrip
-          name={data.period.name}
-          dueDate={formatShortDate(data.period.dueDate)}
-          daysLeft={data.period.dueDate ? daysUntil(data.period.dueDate) : undefined}
-          progress={scopedProgress}
-          onOpen={activeLens === 'me' ? undefined : () => onNavigate('reviews')}
-        />
-      )}
+      <TodayStrip insights={insights} cycle={cycle} onNavigate={onNavigate} />
 
-      {/* Role dashboard */}
       {activeLens === 'admin' && data.admin ? (
-        <AdminDashboard data={data} admin={data.admin} onNavigate={onNavigate} />
+        <AdminDashboard data={data} admin={data.admin} onNavigate={onNavigate} middle={orgMiddle} />
       ) : activeLens === 'hr' && data.hr ? (
-        <HrDashboard data={data} hr={data.hr} onNavigate={onNavigate} onRefresh={load} />
+        <HrDashboard data={data} hr={data.hr} onNavigate={onNavigate} onRefresh={load} middle={orgMiddle} />
       ) : activeLens === 'hod' && data.hod ? (
-        <HodDashboard data={data} hod={data.hod} onNavigate={onNavigate} />
+        <HodDashboard data={data} hod={data.hod} onNavigate={onNavigate} middle={departmentMiddle} />
       ) : activeLens === 'team' && data.team ? (
-        <ManagerDashboard data={data} team={data.team} onNavigate={onNavigate} />
+        <ManagerDashboard data={data} team={data.team} onNavigate={onNavigate} middle={teamMiddle} />
       ) : data.me ? (
-        <EmployeeDashboard data={data} me={data.me} onNavigate={onNavigate} onOpenLetter={handleOpenLetter} />
+        <EmployeeDashboard data={data} me={data.me} onNavigate={onNavigate} onOpenLetter={handleOpenLetter} middle={myMiddle} />
       ) : (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           Your account isn't linked to an employee record, so there is no personal review to show.

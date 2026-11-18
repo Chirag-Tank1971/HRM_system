@@ -35,6 +35,9 @@ export interface DashboardTaskLink {
     | 'audit'
     | 'calibration'
     | 'management'
+    | 'leave'
+    | 'calendar'
+    | 'approvals'
     | 'sales_champs';
   params?: Record<string, string | number | boolean>;
 }
