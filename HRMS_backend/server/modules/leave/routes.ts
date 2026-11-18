@@ -217,6 +217,18 @@ leaveRouter.get('/leave/calendar', async (req: AuthenticatedRequest, res) => {
   } catch (err) { fail(res, err, 'Failed to load the leave calendar.'); }
 });
 
+/** GET /api/leave/restricted-holidays — upcoming restricted holidays the caller can take. */
+leaveRouter.get('/leave/restricted-holidays', async (req: AuthenticatedRequest, res) => {
+  try {
+    const today = todayIso();
+    const location = req.employeeProfile?.location;
+    const rows = (await listHolidays(today, `${Number(today.slice(0, 4)) + 1}-12-31`)).filter(
+      (h) => h.optional && (!h.locations?.length || (!!location && h.locations.some((l) => l.toLowerCase() === String(location).toLowerCase())))
+    );
+    res.json(rows);
+  } catch (err) { fail(res, err, 'Failed to load restricted holidays.'); }
+});
+
 // ----- Holidays -----
 leaveRouter.get('/holidays', async (req: AuthenticatedRequest, res) => {
   try {

@@ -23,6 +23,8 @@ export interface LeaveType {
   backdatedDays: number;
   sandwich: boolean;
   applicableDuringProbation: boolean;
+  /** Can only be taken on declared restricted holidays. */
+  restrictedHolidaysOnly?: boolean;
   gender?: 'Male' | 'Female' | null;
   active: boolean;
 }
@@ -193,6 +195,7 @@ export const hrApi = {
   getLeaveCalendar: (from: string, to: string) => apiRequest<LeaveRequest[]>(`/leave/calendar${qs({ from, to })}`),
 
   // Holidays
+  getRestrictedHolidays: () => apiRequest<Holiday[]>('/leave/restricted-holidays'),
   getHolidays: (year: number) => apiRequest<Holiday[]>(`/holidays?year=${year}`),
   addHoliday: (data: { date: string; name: string; optional?: boolean }) => apiRequest<Holiday>('/holidays', { method: 'POST', body: data }),
   deleteHoliday: (id: string) => apiRequest<{ success: boolean }>(`/holidays/${id}`, { method: 'DELETE' }),

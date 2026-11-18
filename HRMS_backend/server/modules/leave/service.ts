@@ -50,6 +50,8 @@ export interface LeaveType {
   /** Weekly-offs and holidays between leave days count as leave. */
   sandwich: boolean;
   applicableDuringProbation: boolean;
+  /** Can only be taken on dates HR has declared as restricted (optional) holidays. */
+  restrictedHolidaysOnly?: boolean;
   gender?: 'Male' | 'Female' | null;
   active: boolean;
   createdAt: string;
@@ -137,12 +139,22 @@ export function leaveYearOf(iso: string, startMonth: number): { key: string; sta
 // ---------------------------------------------------------------------------
 // Leave types
 // ---------------------------------------------------------------------------
+/**
+ * Restricted holiday allowance: employees get a few days a year to use on any of the
+ * optional holidays HR has declared (a common Indian practice; 2 a year by default).
+ */
+const RESTRICTED_HOLIDAY_TYPE: Partial<LeaveType> & { code: string; name: string } = {
+  code: 'RH', name: 'Restricted Holiday', color: '#D97706', annualQuota: 2, accrual: 'YEARLY',
+  allowHalfDay: false, maxConsecutiveDays: 1, backdatedDays: 7, restrictedHolidaysOnly: true,
+};
+
 const DEFAULT_LEAVE_TYPES: Array<Partial<LeaveType> & { code: string; name: string }> = [
   { code: 'CL', name: 'Casual Leave', color: '#6366F1', annualQuota: 12, accrual: 'MONTHLY', maxConsecutiveDays: 3, backdatedDays: 7 },
   { code: 'SL', name: 'Sick Leave', color: '#F59E0B', annualQuota: 12, accrual: 'MONTHLY', backdatedDays: 15 },
   { code: 'EL', name: 'Earned Leave', color: '#10B981', annualQuota: 15, accrual: 'MONTHLY', carryForwardMax: 30, encashable: true, noticeDays: 7, sandwich: true, applicableDuringProbation: false },
   { code: 'COMP', name: 'Compensatory Off', color: '#0EA5E9', annualQuota: 0, accrual: 'NONE', backdatedDays: 7 },
   { code: 'LOP', name: 'Loss of Pay', color: '#EF4444', paid: false, annualQuota: 0, accrual: 'NONE', requiresBalance: false, backdatedDays: 30 },
+  RESTRICTED_HOLIDAY_TYPE,
 ];
 
 function buildLeaveType(input: Partial<LeaveType> & { code: string; name: string }): LeaveType {
@@ -185,6 +197,15 @@ export async function listLeaveTypes(includeInactive = false): Promise<LeaveType
       }
     }
     types = await (await col.find({})).toArray();
+  } else if (!types.some((t) => t.code === RESTRICTED_HOLIDAY_TYPE.code)) {
+    // Companies set up before restricted holidays had an allowance get the type once.
+    // HR can deactivate it from the leave types list if they don't use it.
+    try {
+      await col.insertOne(buildLeaveType(RESTRICTED_HOLIDAY_TYPE));
+    } catch {
+      // another request added it first
+    }
+    types = await (await col.find({})).toArray();
   }
   return types
     .filter((t) => includeInactive || t.active !== false)
@@ -194,7 +215,7 @@ export async function listLeaveTypes(includeInactive = false): Promise<LeaveType
 const EDITABLE_TYPE_FIELDS = [
   'name', 'paid', 'color', 'annualQuota', 'accrual', 'requiresBalance', 'carryForwardMax', 'encashable',
   'allowHalfDay', 'maxConsecutiveDays', 'noticeDays', 'backdatedDays', 'sandwich',
-  'applicableDuringProbation', 'gender', 'active',
+  'applicableDuringProbation', 'restrictedHolidaysOnly', 'gender', 'active',
 ] as const;
 
 function cleanTypeInput(input: any): Partial<LeaveType> {
@@ -212,7 +233,7 @@ function cleanTypeInput(input: any): Partial<LeaveType> {
   if (out.gender !== undefined && out.gender !== null && !['Male', 'Female'].includes(out.gender)) throw new LeaveError('Invalid gender restriction.');
   if (out.name !== undefined && !String(out.name).trim()) throw new LeaveError('Name is required.');
   if (out.color !== undefined && !/^#[0-9a-fA-F]{6}$/.test(String(out.color))) throw new LeaveError('Colour must be a hex value like #6366F1.');
-  for (const k of ['paid', 'requiresBalance', 'encashable', 'allowHalfDay', 'sandwich', 'applicableDuringProbation', 'active']) {
+  for (const k of ['paid', 'requiresBalance', 'encashable', 'allowHalfDay', 'sandwich', 'applicableDuringProbation', 'restrictedHolidaysOnly', 'active']) {
     if (out[k] !== undefined) out[k] = Boolean(out[k]);
   }
   return out;
@@ -529,6 +550,19 @@ export async function previewLeave(employee: Employee, input: LeaveApplication, 
     weeklyOffDays: settings.weeklyOffDays, holidays,
   });
   if (count.days <= 0) errors.push('These dates contain no working days.');
+
+  // Restricted-holiday leave: every leave day must be a declared restricted holiday.
+  if (type.restrictedHolidaysOnly && count.days > 0) {
+    const restricted = new Set(
+      (await listHolidays(input.fromDate, input.toDate))
+        .filter((h) => h.optional && (!h.locations?.length || (!!employee.location && h.locations.some((l) => l.toLowerCase() === String(employee.location).toLowerCase()))))
+        .map((h) => h.date)
+    );
+    const notRestricted = count.breakdown.filter((d) => (d.kind === 'LEAVE' || d.kind === 'HALF' || d.kind === 'SANDWICH') && !restricted.has(d.date));
+    if (notRestricted.length) {
+      errors.push(`${type.name} can only be taken on a restricted holiday. ${notRestricted[0].date} is not one.`);
+    }
+  }
   if (type.maxConsecutiveDays && count.days > type.maxConsecutiveDays) {
     errors.push(`${type.name} can be taken for at most ${type.maxConsecutiveDays} days at a time.`);
   }

@@ -9,6 +9,7 @@ import {
   formatDay,
   formatDays,
   todayIso,
+  type Holiday,
   type LeaveBalance,
   type LeavePreview,
   type LeaveType,
@@ -43,6 +44,7 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({ isOpen, onClos
   const [isChecking, setIsChecking] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [restrictedHolidays, setRestrictedHolidays] = useState<Holiday[]>([]);
 
   // Start clean each time the dialog opens.
   useEffect(() => {
@@ -58,6 +60,27 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({ isOpen, onClos
   }, [isOpen, leaveTypes]);
 
   const selectedType = leaveTypes.find((t) => t.id === leaveTypeId);
+  const isRestricted = Boolean(selectedType?.restrictedHolidaysOnly);
+
+  // For a restricted-holiday allowance, offer the restricted holidays to pick from.
+  useEffect(() => {
+    if (!isOpen || !isRestricted) return;
+    let cancelled = false;
+    hrApi
+      .getRestrictedHolidays()
+      .then((rows) => {
+        if (cancelled) return;
+        setRestrictedHolidays(rows);
+        if (rows[0]) {
+          setFromDate(rows[0].date);
+          setToDate(rows[0].date);
+        }
+      })
+      .catch(() => !cancelled && setRestrictedHolidays([]));
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, isRestricted]);
   const application = useMemo(
     () => ({ leaveTypeId, fromDate, toDate, startHalf, endHalf, ...(onBehalfOf ? { employeeId: onBehalfOf.id } : {}) }),
     [leaveTypeId, fromDate, toDate, startHalf, endHalf, onBehalfOf]
@@ -137,6 +160,39 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({ isOpen, onClos
             </p>
           )}
         </div>
+
+        {isRestricted && (
+          <div className="space-y-1.5">
+            <span className={LABEL_CLASS}>Choose a restricted holiday</span>
+            {restrictedHolidays.length === 0 ? (
+              <p className="text-xs text-slate-500 dark:text-slate-400">No upcoming restricted holidays have been declared yet.</p>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {restrictedHolidays.map((h) => {
+                  const isPicked = fromDate === h.date && toDate === h.date;
+                  return (
+                    <button
+                      key={h.id}
+                      type="button"
+                      aria-pressed={isPicked}
+                      onClick={() => {
+                        setFromDate(h.date);
+                        setToDate(h.date);
+                      }}
+                      className={`h-8 px-2.5 rounded-lg border text-xs font-medium cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${
+                        isPicked
+                          ? 'bg-amber-500/15 border-amber-500 text-amber-900 dark:text-amber-200'
+                          : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                    >
+                      {h.name} · {formatDay(h.date)}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1">

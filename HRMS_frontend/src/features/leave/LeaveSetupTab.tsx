@@ -107,6 +107,7 @@ export const LeaveSetupTab: React.FC<LeaveSetupTabProps> = ({ isSuperAdmin, empl
                   <td className="px-3 py-2.5">
                     <div className="flex flex-wrap gap-1">
                       {!t.paid && <StatusBadge status="Unpaid" tone="danger" size="sm" />}
+                      {t.restrictedHolidaysOnly && <StatusBadge status="Restricted holidays only" tone="warning" size="sm" />}
                       {t.sandwich && <StatusBadge status="Sandwich rule" size="sm" />}
                       {t.noticeDays > 0 && <StatusBadge status={`${t.noticeDays} days' notice`} size="sm" />}
                       {t.maxConsecutiveDays ? <StatusBadge status={`Max ${t.maxConsecutiveDays} at a time`} size="sm" /> : null}
@@ -478,6 +479,7 @@ const LeaveTypeModal: React.FC<{ type: Partial<LeaveType> | null; onClose: () =>
           {toggle('encashable', 'Encash days above the carry-forward limit', 'Otherwise they lapse at year end')}
           {toggle('sandwich', 'Sandwich rule', 'Weekly-offs and holidays between leave days count as leave')}
           {toggle('applicableDuringProbation', 'Available during probation')}
+          {toggle('restrictedHolidaysOnly', 'Only on restricted holidays', 'Can be used only on dates declared as restricted holidays (RH)')}
           {!isNew && toggle('active', 'Active')}
         </div>
         {error && <div role="alert" className="p-2.5 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-800 dark:text-rose-300">{error}</div>}
