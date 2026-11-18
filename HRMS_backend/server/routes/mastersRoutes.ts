@@ -1565,14 +1565,21 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
       if (roleError) return res.status(403).json({ error: roleError });
     }
 
-    // Only a Super Admin may change the sign-in of a Super Admin or HR account (password,
-    // email, enabling/disabling login, or deactivating the employee). Otherwise HR could take
-    // over an admin account without ever touching its role.
-    const touchesLogin =
-      Boolean(initialPassword && String(initialPassword).trim()) ||
-      provisionLogin !== undefined ||
-      (email !== undefined && String(email).trim().toLowerCase() !== String(emp.email || '').toLowerCase()) ||
-      (status !== undefined && status !== emp.status);
+    // Only a Super Admin may change the sign-in of a Super Admin or HR account. Otherwise HR
+    // could take over an admin account without ever touching its role. The check looks at what
+    // this save would actually do (the edit form always sends the login switch and status), so
+    // HR can still update ordinary details on those records.
+    const currentlyActive = existingUser ? existingUser.active !== false : false;
+    let resultingActive = currentlyActive;
+    if (provisionLogin !== undefined) resultingActive = Boolean(provisionLogin) && status !== 'INACTIVE';
+    if (status === 'INACTIVE') resultingActive = false;
+    else if ((status === 'ACTIVE' || status === 'PROBATION') && provisionLogin !== false) resultingActive = true;
+
+    const setsPassword =
+      Boolean(provisionLogin) && typeof initialPassword === 'string' && initialPassword.trim().length >= 6;
+    const changesEmail =
+      typeof email === 'string' && email.trim() !== '' && email.trim().toLowerCase() !== String(emp.email || '').toLowerCase();
+    const touchesLogin = setsPassword || changesEmail || resultingActive !== currentlyActive;
     if (
       touchesLogin &&
       existingUser &&
