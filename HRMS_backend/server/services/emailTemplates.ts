@@ -378,3 +378,44 @@ export function renderEmployeeWelcomeEmail(data: {
 
   return { subject, html };
 }
+
+/**
+ * Password reset and first-time "set your password" emails. Both carry a single-use link;
+ * neither ever contains a password.
+ */
+export function renderPasswordLinkEmail(data: {
+  name: string;
+  link: string;
+  /** Human-readable validity, e.g. "30 minutes" or "3 days". */
+  validFor: string;
+  kind: 'RESET' | 'INVITE';
+  companyName?: string;
+}): { subject: string; html: string } {
+  const isInvite = data.kind === 'INVITE';
+  const product = 'Arisotech HRMS';
+  const subject = isInvite ? `Set your password for ${product}` : `Reset your ${product} password`;
+  const html = renderBaseEmailLayout({
+    headerTitle: isInvite ? 'Welcome' : 'Password reset',
+    badge: isInvite ? 'Account ready' : 'Action needed',
+    badgeColor: '#4f46e5',
+    preheader: isInvite ? 'Your account is ready. Set your password to sign in.' : 'Use this link to choose a new password.',
+    contentHtml: `
+      <p>Dear <strong>${data.name}</strong>,</p>
+      <p>${
+        isInvite
+          ? `An account has been created for you${data.companyName ? ` at <strong>${data.companyName}</strong>` : ''} on ${product}. Choose your password to sign in.`
+          : `We received a request to reset the password for your ${product} account.`
+      }</p>
+      <p style="margin:24px 0;">
+        <a href="${data.link}" style="background:#4f46e5;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-weight:600;display:inline-block;">
+          ${isInvite ? 'Set my password' : 'Choose a new password'}
+        </a>
+      </p>
+      <p style="font-size:13px;color:#475569;">This link works once and expires in ${data.validFor}.${
+        isInvite ? '' : ' If you did not ask for this, you can ignore this email; your password stays the same.'
+      }</p>
+      <p style="font-size:12px;color:#64748b;word-break:break-all;">If the button does not work, copy this address into your browser:<br>${data.link}</p>
+    `,
+  });
+  return { subject, html };
+}

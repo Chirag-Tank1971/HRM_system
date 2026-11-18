@@ -8,6 +8,7 @@ import {
   AuthenticatedRequest,
   authorizeEmployeeAccess,
   invalidateAuthCache,
+  roleAssignmentError,
   revokeUserSessions,
   generateTempPassword,
 } from '../auth.js';
@@ -829,6 +830,11 @@ mastersRouter.post('/employees', requireRoles('SUPER_ADMIN', 'HR'), async (req: 
       customKras,
     } = req.body;
 
+    if (systemRole !== undefined && systemRole !== null && systemRole !== '') {
+      const roleError = roleAssignmentError(req.user, systemRole);
+      if (roleError) return res.status(403).json({ error: roleError });
+    }
+
     const empCol = getDbCollection('employees');
     const deptCol = getDbCollection('departments');
     const desCol = getDbCollection('designations');
@@ -1549,6 +1555,15 @@ mastersRouter.put('/employees/:id', requireRoles('SUPER_ADMIN', 'HR'), async (re
     const existingUser =
       (await usersCol.findOne({ employeeId: id })) ||
       (await usersCol.findOne({ email: emp.email.toLowerCase().trim() }));
+
+    if (systemRole !== undefined && systemRole !== null && systemRole !== '') {
+      const roleError = roleAssignmentError(req.user, systemRole, {
+        userId: existingUser?.id,
+        employeeId: id,
+        currentRole: existingUser?.role ?? null,
+      });
+      if (roleError) return res.status(403).json({ error: roleError });
+    }
 
     if (provisionLogin !== undefined) {
       const isLoginEnabled = Boolean(provisionLogin);

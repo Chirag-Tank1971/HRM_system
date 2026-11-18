@@ -22,6 +22,10 @@ import { managementRouter } from './routes/managementRoutes.js';
 import { pipRouter } from './routes/pipRoutes.js';
 import { dashboardRouter } from './routes/dashboardRoutes.js';
 import { salesChampsRouter } from './routes/salesChampsRoutes.js';
+import { platformRouter, companyRouter } from './routes/platformRoutes.js';
+import { salaryFieldGuard } from './core/fieldProtection.js';
+import { approvalRouter } from './routes/approvalRoutes.js';
+import { leaveRouter } from './modules/leave/routes.js';
 
 export interface CreateAppOptions {
   /** Request logger used for slow-request lines (kept on in production). */
@@ -112,8 +116,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     next();
   });
 
-  // Trust the first reverse proxy hop (Render, Cloudflare, Nginx) for req.ip
-  app.set('trust proxy', 1);
+  // How many reverse-proxy hops sit in front of this server (Render, Cloudflare, Nginx).
+  // req.ip is then taken from the address the nearest trusted proxy recorded, which a client
+  // cannot forge. Set TRUST_PROXY_HOPS to match the hosting setup (default 1).
+  const proxyHops = Number(process.env.TRUST_PROXY_HOPS);
+  app.set('trust proxy', Number.isInteger(proxyHops) && proxyHops >= 0 ? proxyHops : 1);
 
   app.use(express.json({ limit: '10mb' }));
   app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -195,6 +202,11 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   // ---------------------------------------------------------------------------
   // API routes
   // ---------------------------------------------------------------------------
+  // Salary fields are stripped from employee records for users without SALARY_VIEW.
+  app.use('/api', salaryFieldGuard);
+
+  app.use('/api/platform', platformRouter);
+  app.use('/api', companyRouter);
   app.use('/api/auth', authRouter);
   app.use('/api', mastersRouter);
   app.use('/api', kraRouter);
@@ -210,6 +222,8 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
   app.use('/api', managementRouter);
   app.use('/api', dashboardRouter);
   app.use('/api', salesChampsRouter);
+  app.use('/api', approvalRouter);
+  app.use('/api', leaveRouter);
 
   // Standard JSON 404 for unmatched /api routes
   app.all('/api/*', (_req, res) => {

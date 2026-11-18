@@ -240,6 +240,27 @@ async function requestWithDedupeAndCache<T>(
   return fetchPromise;
 }
 
+const COMPANY_CODE_KEY = 'hrms_company_code';
+
+/** The company code this browser signs in to (remembered between visits). */
+export function getCompanyCode(): string {
+  try {
+    return (localStorage.getItem(COMPANY_CODE_KEY) || '').trim().toLowerCase();
+  } catch {
+    return '';
+  }
+}
+
+export function setCompanyCode(code: string): void {
+  try {
+    const clean = code.trim().toLowerCase();
+    if (clean) localStorage.setItem(COMPANY_CODE_KEY, clean);
+    else localStorage.removeItem(COMPANY_CODE_KEY);
+  } catch {
+    // storage unavailable: the code is simply not remembered
+  }
+}
+
 export const api = {
   // Auth & Session
   async login(email: string, password: string) {
@@ -247,10 +268,14 @@ export const api = {
     const res = await fetch(`${API_BASE}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      // Company code is only needed when the platform hosts more than one company.
+      body: JSON.stringify({ email, password, ...(getCompanyCode() ? { companyCode: getCompanyCode() } : {}) }),
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({ error: 'Authentication failed' }));
+      if (err.code === 'COMPANY_CODE_REQUIRED') {
+        throw Object.assign(new Error(err.error || 'Enter your company code to sign in.'), { code: err.code });
+      }
       let msg = err.error || 'Login failed';
       if (typeof err.remainingAttempts === 'number') {
         msg += err.remainingAttempts === 0
@@ -2077,3 +2102,32 @@ export const api = {
   },
 };
 
+/**
+ * Generic authenticated JSON request, for the newer feature modules (services/hrApi.ts).
+ * Goes through fetchWithAutoRefresh, so an expired session is renewed transparently.
+ */
+export async function apiRequest<T>(path: string, options: { method?: string; body?: unknown } = {}): Promise<T> {
+  const res = await fetchWithAutoRefresh(`${API_BASE}${path}`, {
+    method: options.method || 'GET',
+    headers: getAuthHeaders(),
+    ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw Object.assign(new Error(err.error || `Request failed (${res.status})`), { status: res.status, code: err.code });
+  }
+  return res.json();
+}
+
+/** Unauthenticated JSON POST (password reset flows, which have no session to refresh). */
+export async function publicPost<T>(path: string, body: unknown): Promise<T> {
+  // eslint-disable-next-line no-restricted-globals -- no session exists yet on these routes
+  const res = await fetch(`${API_BASE}${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.error || `Request failed (${res.status})`), { status: res.status, code: data.code });
+  return data;
+}

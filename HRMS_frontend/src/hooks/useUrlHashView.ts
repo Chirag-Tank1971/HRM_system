@@ -16,7 +16,10 @@ export type AppView =
   | 'audit'
   | 'notifications'
   | 'pip'
-  | 'sales_champs';
+  | 'sales_champs'
+  | 'leave'
+  | 'calendar'
+  | 'approvals';
 
 // NAV_ITEMS (frontend/src/config/navigation.ts) is the single source of truth for which
 // roles can reach which view — VALID_VIEWS and ROLE_ALLOWED_VIEWS are both derived from it

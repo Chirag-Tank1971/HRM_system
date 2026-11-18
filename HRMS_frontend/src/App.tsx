@@ -69,6 +69,16 @@ const PerformanceImprovementPlansView = lazy(() =>
 const SalesChampsView = lazy(() =>
   import('./components/SalesChampsView').then((m) => ({ default: m.SalesChampsView }))
 );
+const LeaveView = lazy(() => import('./features/leave/LeaveView').then((m) => ({ default: m.LeaveView })));
+const CalendarView = lazy(() =>
+  import('./features/calendar/CalendarView').then((m) => ({ default: m.CalendarView }))
+);
+const ApprovalsView = lazy(() =>
+  import('./features/approvals/ApprovalsView').then((m) => ({ default: m.ApprovalsView }))
+);
+const ResetPasswordPage = lazy(() =>
+  import('./features/auth/ResetPasswordPage').then((m) => ({ default: m.ResetPasswordPage }))
+);
 
 // Modals lazy loaded on demand
 const EmployeeModal = lazy(() =>
@@ -185,6 +195,15 @@ function AppContent() {
           </p>
         </div>
       </div>
+    );
+  }
+
+  // Password links from email work whether or not someone is signed in on this device.
+  if (window.location.pathname === '/reset-password') {
+    return (
+      <Suspense fallback={null}>
+        <ResetPasswordPage />
+      </Suspense>
     );
   }
 
@@ -359,6 +378,12 @@ function AppContent() {
                   />
                 ) : currentView === 'sales_champs' ? (
                   <SalesChampsView employees={employees} departments={departments} />
+                ) : currentView === 'leave' ? (
+                  <LeaveView currentUser={user} employees={employees} />
+                ) : currentView === 'calendar' ? (
+                  <CalendarView currentUser={user} />
+                ) : currentView === 'approvals' ? (
+                  <ApprovalsView />
                 ) : currentView === 'employees' && ['SUPER_ADMIN', 'HR'].includes(user?.role || '') ? (
                   <EmployeeDirectory
                     currentUser={user}

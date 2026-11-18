@@ -782,7 +782,7 @@ appraisalRouter.get('/appraisals/:id', async (req: AuthenticatedRequest, res: Re
         appraisal.employeeId === user.employeeId ||
         empRecord?.managerId === user.employeeId ||
         empRecord?.hodId === user.employeeId ||
-        (user.name && empRecord?.managerName?.toLowerCase() === user.name.toLowerCase());
+        (!!user.employeeId && (empRecord?.managerIds || []).includes(user.employeeId));
 
       if (!isManagerMatch) {
         return res.status(403).json({ error: 'Access denied: You can only view appraisals for your direct reports.' });

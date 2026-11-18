@@ -1,4 +1,6 @@
 import cron from 'node-cron';
+import { forEachTenant } from '../core/tenants.js';
+import { runLeaveAccrual } from '../modules/leave/service.js';
 import { getDbCollection } from '../db.js';
 import { ReviewPeriod, EmployeeReview, Employee, Cycle, PerformanceImprovementPlan } from '../../src/types/index.js';
 import { syncAllActiveEmployees } from '../syncHelpers.js';
@@ -38,6 +40,14 @@ function errorJob(job: string, message: string, err: any): void {
  * Production Background Scheduler using node-cron
  * Handles automated workflow execution, reminder dispatches, and deadline escalations
  */
+/**
+ * Registers a cron job that runs once per company, each run inside that company's tenant
+ * context. A failure for one company is logged and does not stop the others.
+ */
+function scheduleForEachTenant(expression: string, task: () => Promise<void> | void): void {
+  cron.schedule(expression, () => forEachTenant(async () => { await task(); }));
+}
+
 export function startBackgroundScheduler(): void {
   logJob('Init', 'Initializing automated background cron tasks...');
 
@@ -64,21 +74,37 @@ export function startBackgroundScheduler(): void {
       errorJob(job, `Failed after ${Date.now() - startedAt}ms`, err);
     }
   };
-  void runPeriodRollover();
-  cron.schedule('5 0 * * *', runPeriodRollover);
+  void forEachTenant(runPeriodRollover);
+  scheduleForEachTenant('5 0 * * *', runPeriodRollover);
 
   // Boot-time catch-up: appraisal rolling scores used to be computed only when a cohort was
   // initiated, so quarters closed afterwards never reached them. Recompute once at startup;
   // from here on they're refreshed when a review is evaluated/closed and by the daily sync.
-  void refreshAllOpenAppraisalScores()
-    .then((n) => logJob('AppraisalScoreRefresh', `Recomputed rolling scores for ${n} open appraisals.`))
-    .catch((err) => errorJob('AppraisalScoreRefresh', 'Failed', err));
+  void forEachTenant((tenant) =>
+    refreshAllOpenAppraisalScores()
+      .then((n) => logJob('AppraisalScoreRefresh', `[${tenant.slug}] Recomputed rolling scores for ${n} open appraisals.`))
+      .catch((err) => errorJob('AppraisalScoreRefresh', `[${tenant.slug}] Failed`, err))
+  );
+
+  // Leave accrual: credits whatever has become due (monthly and yearly entitlements, new
+  // joiners). Idempotent, so it runs at boot to catch up and then daily at 00:30.
+  const runAccrual = async () => {
+    const job = 'LeaveAccrual';
+    try {
+      const { credited, employees } = await runLeaveAccrual();
+      if (credited > 0) logJob(job, `Credited ${credited} leave entr${credited === 1 ? 'y' : 'ies'} across ${employees} employees.`);
+    } catch (err: any) {
+      errorJob(job, 'Failed', err);
+    }
+  };
+  void forEachTenant(runAccrual);
+  scheduleForEachTenant('30 0 * * *', runAccrual);
 
   // 0. Daily at 07:00 AM: Auto-generate quarterly reviews for any employee who has newly
   // become eligible (KRA assigned, tenure now met, manager assigned, etc.) without requiring
   // HR to save their record or click "Sync" manually. Runs before the 08:00/08:30 reminder
   // jobs below so anyone picked up today is included in those same-day reminders.
-  cron.schedule('0 7 * * *', async () => {
+  scheduleForEachTenant('0 7 * * *', async () => {
     const job = 'DailyEligibilitySync';
     const startedAt = Date.now();
     logJob(job, 'Started — running daily automatic review/appraisal eligibility sync...');
@@ -91,7 +117,7 @@ export function startBackgroundScheduler(): void {
   });
 
   // 1. Daily at 08:00 AM: Check and send evaluation reminders to managers for pending reviews
-  cron.schedule('0 8 * * *', async () => {
+  scheduleForEachTenant('0 8 * * *', async () => {
     const job = 'ManagerReviewReminder';
     const startedAt = Date.now();
     logJob(job, 'Started — running daily manager review reminder job...');
@@ -143,7 +169,7 @@ export function startBackgroundScheduler(): void {
   });
 
   // Daily at 08:30 AM: Send self-assessment reminders to employees for pending reviews in active periods
-  cron.schedule('30 8 * * *', async () => {
+  scheduleForEachTenant('30 8 * * *', async () => {
     const job = 'EmployeeSelfAssessmentReminder';
     const startedAt = Date.now();
     logJob(job, 'Started — running daily employee self-assessment reminder job...');
@@ -201,7 +227,7 @@ export function startBackgroundScheduler(): void {
   });
 
   // 2. Daily at 09:00 AM: Check for overdue reviews past dueDate and escalate to HR / HOD
-  cron.schedule('0 9 * * *', async () => {
+  scheduleForEachTenant('0 9 * * *', async () => {
     const job = 'OverdueReviewEscalation';
     const startedAt = Date.now();
     logJob(job, 'Started — checking for overdue reviews past submission deadline...');
@@ -275,7 +301,7 @@ export function startBackgroundScheduler(): void {
   });
 
   // 3. Monthly on the 1st at 06:00 AM: Notify HR and managers of employees due for annual appraisal
-  cron.schedule('0 6 1 * *', async () => {
+  scheduleForEachTenant('0 6 1 * *', async () => {
     const job = 'MonthlyAppraisalCohortCheck';
     const startedAt = Date.now();
     logJob(job, 'Started — running monthly appraisal cohort eligibility check...');
@@ -328,7 +354,7 @@ export function startBackgroundScheduler(): void {
 
   // 4. Daily at 08:45 AM: Remind the manager/HOD of any employee on an active PIP if no
   // check-in has been logged in the last 7 days — keeps the plan from going silently stale.
-  cron.schedule('45 8 * * *', async () => {
+  scheduleForEachTenant('45 8 * * *', async () => {
     const job = 'PipCheckInReminder';
     const startedAt = Date.now();
     logJob(job, 'Started — running daily PIP check-in reminder job...');
@@ -412,7 +438,7 @@ export function startBackgroundScheduler(): void {
   });
 
   // Daily at 01:15 AM: Automatically generate due 7-day periodic and final PIP reviews
-  cron.schedule('15 1 * * *', async () => {
+  scheduleForEachTenant('15 1 * * *', async () => {
     const job = 'PipReviewGeneration';
     const startedAt = Date.now();
     try {
@@ -428,7 +454,7 @@ export function startBackgroundScheduler(): void {
   // 5. Daily at 09:15 AM: Escalate to HR any PIP that has passed its end date without a
   // recorded outcome (SUCCEEDED/FAILED/EXTENDED) — prevents plans from silently expiring
   // unresolved, which matters if a later termination is ever challenged.
-  cron.schedule('15 9 * * *', async () => {
+  scheduleForEachTenant('15 9 * * *', async () => {
     const job = 'PipOutcomeEscalation';
     const startedAt = Date.now();
     logJob(job, 'Started — checking for PIPs past end date with no recorded outcome...');
@@ -479,7 +505,7 @@ export function startBackgroundScheduler(): void {
   // Management previously received zero notifications of any kind; this gives them one
   // low-noise daily signal rather than replicating every HR/Manager alert at their volume.
   // Runs after the 09:00/09:15 checks above so it reflects the same day's escalation state.
-  cron.schedule('30 9 * * *', async () => {
+  scheduleForEachTenant('30 9 * * *', async () => {
     const job = 'ManagementExecutiveDigest';
     const startedAt = Date.now();
     logJob(job, 'Started — compiling daily executive digest for Management...');
@@ -560,7 +586,7 @@ export function startBackgroundScheduler(): void {
 
   // 7. Daily at 09:45 AM: Return SLA — remind whoever holds an overdue KRA return, and
   // escalate to HR once it is overdue by a further full SLA window.
-  cron.schedule('45 9 * * *', async () => {
+  scheduleForEachTenant('45 9 * * *', async () => {
     const job = 'ReturnSlaSweep';
     const startedAt = Date.now();
     try {

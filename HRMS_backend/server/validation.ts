@@ -45,6 +45,8 @@ export const LoginSchema = z.object({
     .max(254)
     .refine((v) => !v.includes('@') || z.string().email().safeParse(v).success, 'Invalid email address format'),
   password: z.string().min(1, 'Password is required'),
+  // Company code (tenant slug). Optional while the platform hosts a single company.
+  companyCode: z.string().trim().max(40).optional(),
 });
 
 export const ChangePasswordSchema = z

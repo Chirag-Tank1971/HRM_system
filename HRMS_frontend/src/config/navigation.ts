@@ -14,6 +14,9 @@ import {
   ClipboardList,
   Bell,
   Trophy,
+  CalendarDays,
+  CalendarRange,
+  Inbox,
 } from 'lucide-react';
 import type { AppView } from '../hooks/useUrlHashView';
 import type { UserRole } from '../types';
@@ -66,6 +69,33 @@ export const NAV_ITEMS: NavItemConfig[] = [
     subtitle: 'Progress, departments and trends across the organization',
     icon: BarChart3,
     roles: ['MANAGEMENT'],
+  },
+  {
+    id: 'leave',
+    group: 'Work',
+    mobileSection: 'primary',
+    label: 'Leave',
+    subtitle: 'Apply for leave, balances and holidays',
+    icon: CalendarDays,
+    roles: ['SUPER_ADMIN', 'HR', 'REPORTING_MANAGER', 'MANAGER', 'HOD', 'EMPLOYEE', 'MANAGEMENT'],
+  },
+  {
+    id: 'calendar',
+    group: 'Work',
+    mobileSection: 'primary',
+    label: 'Calendar',
+    subtitle: 'Holidays, weekly-offs and who is on leave',
+    icon: CalendarRange,
+    roles: ['SUPER_ADMIN', 'HR', 'REPORTING_MANAGER', 'MANAGER', 'HOD', 'EMPLOYEE', 'MANAGEMENT'],
+  },
+  {
+    id: 'approvals',
+    group: 'Work',
+    mobileSection: 'primary',
+    label: 'Approvals',
+    subtitle: 'Requests waiting for your decision',
+    icon: Inbox,
+    roles: ['SUPER_ADMIN', 'HR', 'REPORTING_MANAGER', 'MANAGER', 'HOD', 'EMPLOYEE', 'MANAGEMENT'],
   },
   {
     id: 'reviews',

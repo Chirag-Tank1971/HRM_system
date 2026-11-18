@@ -9,6 +9,7 @@ export type UserRole =
 
 export type Permission =
   | 'USER_VIEW'
+  | 'SALARY_VIEW'
   | 'USER_CREATE'
   | 'USER_UPDATE'
   | 'ROLE_MANAGE'

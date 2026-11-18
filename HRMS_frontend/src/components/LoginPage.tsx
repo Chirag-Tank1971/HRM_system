@@ -6,6 +6,8 @@ import { Eye, EyeOff, AlertCircle, Loader2, Sun, Moon } from 'lucide-react';
 
 import { AppLogo } from './ui/AppLogo';
 import { INPUT_CLASS, LABEL_CLASS } from './ui/formStyles';
+import { getCompanyCode, setCompanyCode } from '../services/api';
+import { hrApi } from '../services/hrApi';
 
 interface QuickRole {
   role: UserRole;
@@ -97,6 +99,37 @@ export const LoginPage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showForgotInfo, setShowForgotInfo] = useState(false);
   const [selectedPersona, setSelectedPersona] = useState<QuickRole | null>(null);
+  // Company code: asked for only when the server hosts more than one company.
+  const [companyCode, setCompanyCodeState] = useState(() => getCompanyCode());
+  const [showCompanyCode, setShowCompanyCode] = useState(() => Boolean(getCompanyCode()));
+
+  const updateCompanyCode = (value: string) => {
+    setCompanyCodeState(value);
+    setCompanyCode(value);
+  };
+
+  const [resetState, setResetState] = useState<'idle' | 'sending' | 'sent'>('idle');
+
+  const handleSendResetLink = async () => {
+    if (!email.trim()) {
+      setError('Enter your employee ID or work email first, then ask for a reset link.');
+      return;
+    }
+    setError(null);
+    setResetState('sending');
+    try {
+      await hrApi.forgotPassword(email.trim());
+      setResetState('sent');
+    } catch (err: any) {
+      setResetState('idle');
+      handleLoginError(err, 'Could not send a reset link. Try again in a moment.');
+    }
+  };
+
+  const handleLoginError = (err: any, fallback: string) => {
+    if (err?.code === 'COMPANY_CODE_REQUIRED') setShowCompanyCode(true);
+    setError(err?.message || fallback);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,7 +143,7 @@ export const LoginPage: React.FC = () => {
     try {
       await login(email.trim().toLowerCase(), password);
     } catch (err: any) {
-      setError(err.message || 'Sign-in failed. Check your ID and password, then try again.');
+      handleLoginError(err, 'Sign-in failed. Check your ID and password, then try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -126,7 +159,7 @@ export const LoginPage: React.FC = () => {
     try {
       await login(quickRole.email, password);
     } catch (err: any) {
-      setError(err.message || 'Demo sign-in failed.');
+      handleLoginError(err, 'Demo sign-in failed.');
     } finally {
       setIsSubmitting(false);
     }
@@ -283,6 +316,29 @@ export const LoginPage: React.FC = () => {
                   />
                 </div>
 
+                {showCompanyCode && (
+                  <div className="space-y-1">
+                    <label htmlFor="login-company" className={LABEL_CLASS}>
+                      Company code
+                    </label>
+                    <input
+                      id="login-company"
+                      type="text"
+                      autoComplete="organization"
+                      autoCapitalize="none"
+                      spellCheck={false}
+                      value={companyCode}
+                      onChange={(e) => updateCompanyCode(e.target.value)}
+                      placeholder="e.g. acme"
+                      disabled={isActionLocked}
+                      className={INPUT_CLASS}
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      The short code your HR team gave you for your company.
+                    </p>
+                  </div>
+                )}
+
                 <div className="space-y-1">
                   <div className="flex items-baseline justify-between">
                     <label htmlFor="login-password" className={LABEL_CLASS}>
@@ -322,12 +378,28 @@ export const LoginPage: React.FC = () => {
                 </div>
 
                 {showForgotInfo && (
-                  <p
+                  <div
                     id="login-forgot-help"
-                    className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed rounded-md bg-slate-100 dark:bg-slate-800/60 px-2.5 py-1.5 animate-fadeIn"
+                    className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed rounded-md bg-slate-100 dark:bg-slate-800/60 px-2.5 py-2 space-y-1.5 animate-fadeIn"
                   >
-                    Ask your HR administrator to set a temporary password for you. They can do this from the employees page.
-                  </p>
+                    {resetState === 'sent' ? (
+                      <p role="status">
+                        If an account matches, we have emailed a link to choose a new password. It works once and expires in 30 minutes.
+                      </p>
+                    ) : (
+                      <>
+                        <p>Enter your employee ID or work email above and we will email you a link to choose a new password.</p>
+                        <button
+                          type="button"
+                          onClick={handleSendResetLink}
+                          disabled={resetState === 'sending'}
+                          className="font-semibold text-indigo-700 dark:text-indigo-400 hover:underline cursor-pointer disabled:opacity-60 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+                        >
+                          {resetState === 'sending' ? 'Sending…' : 'Email me a reset link'}
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
 
                 <button

@@ -1,7 +1,9 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import { getDbCollection } from '../db.js';
-import { AuthenticatedRequest, authenticateToken, requireRoles } from '../auth.js';
+import { forEachTenant } from '../core/tenants.js';
+import { AuthenticatedRequest, authenticateToken, generateTempPassword, requireRoles, roleAssignmentError } from '../auth.js';
+import { sendPasswordLink } from '../core/passwordLinks.js';
 import { resyncUnscoredReviewKraSnapshots, syncEmployeeAppraisalsAndReviews } from '../syncHelpers.js';
 import {
   BulkDatasetType,
@@ -229,13 +231,17 @@ async function resolveAndSyncHierarchy(): Promise<{ updatedCount: number; totalS
 }
 
 // Automatically schedule hierarchy synchronization once server finishes loading
-setTimeout(() => {
-  resolveAndSyncHierarchy().then((res) => {
-    if (res.updatedCount > 0) {
-      console.log(`[Bulk Engine] Auto-synced hierarchy for ${res.updatedCount} employee records on startup.`);
-    }
-  }).catch(() => {});
-}, 3000);
+// (once per company, each inside its own tenant context). Skipped under test.
+if (process.env.NODE_ENV !== 'test') {
+  setTimeout(() => {
+    void forEachTenant(async (tenant) => {
+      const res = await resolveAndSyncHierarchy();
+      if (res.updatedCount > 0) {
+        console.log(`[Bulk Engine] [${tenant.slug}] Auto-synced hierarchy for ${res.updatedCount} employee records on startup.`);
+      }
+    }, () => {});
+  }, 3000);
+}
 
 function cleanCode(val: any): string {
   const str = String(val || '').trim();
@@ -853,6 +859,7 @@ bulkRouter.post('/import/:type', async (req: AuthenticatedRequest, res: Response
     const designationsCol = getDbCollection('designations');
     const cyclesCol = getDbCollection('cycles');
     const usersCol = getDbCollection('users');
+    const invitesToSend: Array<{ id: string; email: string; name: string }> = [];
     const kraTemplatesCol = getDbCollection('kraTemplates');
     const krasCol = getDbCollection('kras');
     const auditLogsCol = getDbCollection('auditLogs');
@@ -1040,6 +1047,30 @@ bulkRouter.post('/import/:type', async (req: AuthenticatedRequest, res: Response
             updatedAt: new Date().toISOString(),
           };
 
+          // Check the requested system role before writing anything for this row.
+          {
+            const requested = row.role ? String(row.role).toUpperCase().replace(/[\s\-_]+/g, '') : '';
+            let requestedRole: UserRole = 'EMPLOYEE';
+            if (requested === 'HR' || requested === 'HRADMIN') requestedRole = 'HR';
+            else if (requested === 'MANAGER' || requested === 'MGR') requestedRole = 'MANAGER';
+            else if (requested === 'HOD') requestedRole = 'HOD';
+            else if (requested === 'SUPERADMIN' || requested === 'ADMIN') requestedRole = 'SUPER_ADMIN';
+            else if (requested === 'MANAGEMENT' || requested === 'CXO') requestedRole = 'MANAGEMENT';
+
+            if (existing && allowUpdateExisting && row.role) {
+              const linked = await usersCol.findOne({ $or: [{ employeeId: existing.id }, { email: existing.email }] });
+              const roleError = roleAssignmentError(req.user, requestedRole, {
+                userId: linked?.id,
+                employeeId: existing.id,
+                currentRole: linked?.role ?? null,
+              });
+              if (roleError) throw new Error(roleError);
+            } else if (!existing) {
+              const roleError = roleAssignmentError(req.user, requestedRole);
+              if (roleError) throw new Error(roleError);
+            }
+          }
+
           if (existing && allowUpdateExisting) {
             await employeesCol.updateOne({ id: existing.id }, { $set: empPayload });
             if (row.role) {
@@ -1072,11 +1103,14 @@ bulkRouter.post('/import/:type', async (req: AuthenticatedRequest, res: Response
             else if (candidateRole === 'SUPERADMIN' || candidateRole === 'ADMIN') role = 'SUPER_ADMIN';
             else if (candidateRole === 'MANAGEMENT' || candidateRole === 'CXO') role = 'MANAGEMENT';
 
-            const tempPassword = `Welcome@${new Date().getFullYear()}`;
-            const passwordHash = bcrypt.hashSync(tempPassword, 10);
+            // A random password nobody knows; the employee sets their own through an emailed
+            // single-use link (or HR sets one from the employee's profile).
+            const passwordHash = bcrypt.hashSync(generateTempPassword(), 10);
+            const newUserId = `usr_${Math.random().toString(36).substr(2, 9)}`;
+            invitesToSend.push({ id: newUserId, email, name });
 
             await usersCol.insertOne({
-              id: `usr_${Math.random().toString(36).substr(2, 9)}`,
+              id: newUserId,
               name,
               email,
               role,
@@ -1312,6 +1346,20 @@ bulkRouter.post('/import/:type', async (req: AuthenticatedRequest, res: Response
         failedCount++;
         errorsList.push({ row: rowNum, reason: rowErr.message || 'Row processing failure' });
       }
+    }
+
+    // Email each new account a "set your password" link. Failures are counted, not fatal:
+    // HR can resend from the employee's profile or the user can use "Forgot password".
+    let invitesSent = 0;
+    for (const invitee of invitesToSend) {
+      try {
+        if (await sendPasswordLink(invitee, 'INVITE')) invitesSent++;
+      } catch (inviteErr) {
+        console.error(`[Bulk Engine] Could not send invite to ${invitee.email}:`, inviteErr);
+      }
+    }
+    if (invitesToSend.length > 0) {
+      console.log(`[Bulk Engine] Sent ${invitesSent}/${invitesToSend.length} set-password invite(s).`);
     }
 
     // Post-import hierarchy synchronization pass (links manager and HOD by codes and backfills relationships)

@@ -21,7 +21,7 @@ export const ForcePasswordChangeScreen: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const hasMinLength = newPassword.length >= 8;
+  const hasMinLength = newPassword.length >= 10;
   const hasNoSpaces = !newPassword.includes(' ');
   const isNotDefault = !['password123', 'welcome@2026', 'password', '12345678', 'admin123'].includes(newPassword.toLowerCase());
   const passwordsMatch = newPassword === confirmPassword && confirmPassword.length > 0;
@@ -113,7 +113,7 @@ export const ForcePasswordChangeScreen: React.FC = () => {
             {newPassword.length > 0 && (
               <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
                 <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">Password requirements</p>
-                <Req met={hasMinLength} label="At least 8 characters" />
+                <Req met={hasMinLength} label="At least 10 characters" />
                 <Req met={hasNoSpaces} label="No spaces allowed" />
                 <Req met={isNotDefault} label="Not a common or default password" />
                 <Req met={passwordsMatch} label="Passwords match" />

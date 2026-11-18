@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { Request, Response, NextFunction } from 'express';
 import { getDbCollection } from './db.js';
+import { currentTenantId, runWithTenant } from './core/tenantContext.js';
+import { isTenantUsable } from './core/tenants.js';
 import { User, UserRole, Employee, Role, EmployeeReview, ReviewStatus, Permission } from '../src/types/index.js';
 
 const isProduction = process.env.NODE_ENV === 'production';
@@ -68,6 +70,7 @@ export interface AuthenticatedRequest extends Request {
 export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   SUPER_ADMIN: [
     'USER_VIEW',
+    'SALARY_VIEW',
     'USER_CREATE',
     'USER_UPDATE',
     'ROLE_MANAGE',
@@ -90,6 +93,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'AUDIT_VIEW',
   ],
   HR: [
+    'SALARY_VIEW',
     'EMPLOYEE_VIEW_ALL',
     'EMPLOYEE_CREATE',
     'EMPLOYEE_UPDATE',
@@ -134,6 +138,7 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
     'OWN_SELF_ASSESSMENT',
   ],
   MANAGEMENT: [
+    'SALARY_VIEW',
     'ORG_DASHBOARD_VIEW',
     'ORG_ANALYTICS_VIEW',
     'ORG_REPORT_VIEW',
@@ -150,6 +155,13 @@ export interface TokenOptions {
   impersonatorId?: string;
 }
 
+/** The tenant a token is issued for: the user's own, else the current request's. */
+function tenantIdFor(user: User): string {
+  const tid = (user as any).tenantId || currentTenantId();
+  if (!tid) throw new Error('[Auth] Cannot issue a token without a tenant.');
+  return tid;
+}
+
 export function generateAccessToken(user: User, opts: TokenOptions = {}): string {
   return jwt.sign(
     {
@@ -158,6 +170,9 @@ export function generateAccessToken(user: User, opts: TokenOptions = {}): string
       role: user.role,
       name: user.name,
       employeeId: user.employeeId,
+      tid: tenantIdFor(user),
+      // Session version: bumping the user's tokenVersion revokes every access token at once.
+      tv: user.tokenVersion ?? 1,
       type: 'access',
       ...(opts.impersonatorId ? { impersonatorId: opts.impersonatorId } : {}),
     },
@@ -174,6 +189,7 @@ export function generateRefreshToken(user: User, tokenVersion: number = 1, opts:
     {
       id: user.id,
       email: user.email,
+      tid: tenantIdFor(user),
       tokenVersion,
       type: 'refresh',
       ...(opts.impersonatorId ? { impersonatorId: opts.impersonatorId } : {}),
@@ -188,34 +204,34 @@ export function generateRefreshToken(user: User, tokenVersion: number = 1, opts:
  */
 export async function verifyRefreshToken(
   refreshToken: string
-): Promise<{ user: User; tokenVersion: number; impersonatorId?: string } | null> {
+): Promise<{ user: User; tokenVersion: number; tenantId: string; impersonatorId?: string } | null> {
   try {
     const decoded = jwt.verify(refreshToken, JWT_REFRESH_SECRET) as any;
-    if (!decoded || decoded.type !== 'refresh' || !decoded.id) {
+    if (!decoded || decoded.type !== 'refresh' || !decoded.id || typeof decoded.tid !== 'string') {
       return null;
     }
+    const tenantId: string = decoded.tid;
+    if (!(await isTenantUsable(tenantId))) return null;
 
-    const usersCol = getDbCollection('users');
-    let user = await usersCol.findOne({ id: decoded.id });
-    if (!user && decoded.email) {
-      user = await usersCol.findOne({ email: String(decoded.email).toLowerCase().trim() });
-    }
+    return await runWithTenant(tenantId, async () => {
+      const user = await getDbCollection('users').findOne({ id: decoded.id });
+      if (!user || user.active === false) {
+        return null;
+      }
 
-    if (!user || user.active === false) {
-      return null;
-    }
+      const currentVersion = user.tokenVersion ?? 1;
+      const tokenVersion = decoded.tokenVersion ?? 1;
+      if (currentVersion !== tokenVersion) {
+        return null;
+      }
 
-    const currentVersion = user.tokenVersion ?? 1;
-    const tokenVersion = decoded.tokenVersion ?? 1;
-    if (currentVersion !== tokenVersion) {
-      return null;
-    }
-
-    return {
-      user,
-      tokenVersion: currentVersion,
-      impersonatorId: typeof decoded.impersonatorId === 'string' ? decoded.impersonatorId : undefined,
-    };
+      return {
+        user,
+        tokenVersion: currentVersion,
+        tenantId,
+        impersonatorId: typeof decoded.impersonatorId === 'string' ? decoded.impersonatorId : undefined,
+      };
+    });
   } catch (err) {
     return null;
   }
@@ -271,39 +287,54 @@ export async function revokeUserSessions(userId: string): Promise<void> {
       { $or: [{ id: userId }, { employeeId: userId }] },
       { $inc: { tokenVersion: 1 } }
     );
+    // Access tokens carry the old version and are rejected from now on; drop cached sessions too.
+    invalidateAuthCache(userId);
   } catch (err) {
     console.error('Failed to revoke user sessions:', err);
   }
 }
 
-export async function verifyTokenString(token: string): Promise<User | null> {
+export interface AccessTokenClaims {
+  id: string;
+  tid: string;
+  tv: number;
+  email?: string;
+  role?: UserRole;
+  impersonatorId?: string;
+}
+
+/**
+ * Checks an access token's signature, expiry and shape without touching the database.
+ * Refresh tokens and tokens issued before tenancy (no `tid`) are rejected.
+ */
+export function decodeAccessToken(token: string | undefined): AccessTokenClaims | null {
+  if (!token) return null;
   try {
     const decoded = jwt.verify(token, JWT_SECRET) as any;
-    const usersCol = getDbCollection('users');
-    let user = await usersCol.findOne({ id: decoded.id });
-    if (!user && decoded.email) {
-      user = await usersCol.findOne({ email: String(decoded.email).toLowerCase().trim() });
-    }
-    if (!user && (decoded.employeeId || decoded.id)) {
-      const employeesCol = getDbCollection('employees');
-      const emp = await employeesCol.findOne({
-        $or: [{ id: decoded.employeeId }, { id: decoded.id }, { email: decoded.email }],
-      });
-      if (emp) {
-        user = {
-          id: `usr_${emp.id}`,
-          employeeId: emp.id,
-          email: emp.email,
-          name: emp.name,
-          role: decoded.role || 'EMPLOYEE',
-          roleId: `role_${(decoded.role || 'employee').toLowerCase()}`,
-          active: emp.status !== 'INACTIVE',
-          createdAt: emp.createdAt || new Date().toISOString(),
-        };
-      }
-    }
-    if (!user || user.active === false) return null;
-    return user;
+    if (!decoded || decoded.type !== 'access') return null;
+    if (typeof decoded.id !== 'string' || typeof decoded.tid !== 'string') return null;
+    return { ...decoded, tv: typeof decoded.tv === 'number' ? decoded.tv : 1 };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Resolves an access token to its user, inside the token's tenant. Returns null when the token
+ * is invalid, the company is suspended, the account is inactive or deleted, or the session was
+ * revoked (logout, password change, admin revoke) since the token was issued.
+ */
+export async function verifyTokenString(token: string): Promise<User | null> {
+  const claims = decodeAccessToken(token);
+  if (!claims) return null;
+  try {
+    if (!(await isTenantUsable(claims.tid))) return null;
+    return await runWithTenant(claims.tid, async () => {
+      const user = await getDbCollection('users').findOne({ id: claims.id });
+      if (!user || user.active === false) return null;
+      if ((user.tokenVersion ?? 1) !== claims.tv) return null;
+      return user;
+    });
   } catch (err) {
     return null;
   }
@@ -345,6 +376,28 @@ export async function authenticateToken(req: AuthenticatedRequest, res: Response
   if (!token) {
     return res.status(401).json({ error: 'Authentication required. Missing bearer token.' });
   }
+
+  const claims = decodeAccessToken(token);
+  if (!claims) {
+    authSessionCache.delete(token);
+    return res.status(401).json({ error: 'Authentication required. Invalid or expired session token.' });
+  }
+
+  // Everything downstream (this middleware, the route handler and anything it awaits) runs
+  // inside the token's tenant, so all data access is scoped to that company.
+  return runWithTenant(
+    claims.tid,
+    () => authenticateWithinTenant(req, res, next, token).catch(next),
+    { userId: claims.id }
+  );
+}
+
+async function authenticateWithinTenant(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction,
+  token: string
+) {
 
   // Check in-memory cache first (0.01ms response time)
   const cached = authSessionCache.get(token);
@@ -495,10 +548,11 @@ export function authorizeEmployeeAccess(paramName: string = 'id') {
       // Reporting Manager: only self or direct reports assigned to manager
       if (role === 'REPORTING_MANAGER' || role === 'MANAGER') {
         const isSelf = req.user.employeeId === targetEmp.id || req.user.id === targetEmp.id;
+        // Identity is matched on ids only. Display names are not unique and must never grant access.
+        const managerIds: string[] = [targetEmp.managerId, ...(targetEmp.managerIds || [])].filter(Boolean);
         const isDirectReport =
-          targetEmp.managerId === req.user.employeeId ||
-          targetEmp.managerId === req.user.id ||
-          (req.user.name && targetEmp.managerName?.toLowerCase() === req.user.name.toLowerCase());
+          (!!req.user.employeeId && managerIds.includes(req.user.employeeId)) ||
+          managerIds.includes(req.user.id);
 
         if (isSelf || isDirectReport) {
           return next();
@@ -824,4 +878,41 @@ export async function recordAuditLog(
     details: details || '',
     createdAt: new Date().toISOString(),
   });
+}
+
+/** Roles that can administer accounts and see organisation-wide data. */
+const PRIVILEGED_ROLES: UserRole[] = ['SUPER_ADMIN', 'HR'];
+const ASSIGNABLE_ROLES: UserRole[] = ['SUPER_ADMIN', 'HR', 'MANAGER', 'REPORTING_MANAGER', 'HOD', 'EMPLOYEE', 'MANAGEMENT'];
+
+/**
+ * Decides whether `actor` may give `targetRole` to an account. Returns an error message when
+ * the change is not allowed, or null when it is.
+ *
+ *  - Only a Super Admin can grant or remove the Super Admin and HR roles.
+ *  - Nobody can change their own role.
+ */
+export function roleAssignmentError(
+  actor: Pick<User, 'id' | 'role' | 'employeeId'> | undefined,
+  targetRole: unknown,
+  target: { userId?: string; employeeId?: string; currentRole?: UserRole | null } = {}
+): string | null {
+  if (!actor) return 'Authentication required.';
+  if (typeof targetRole !== 'string' || !ASSIGNABLE_ROLES.includes(targetRole as UserRole)) {
+    return `Invalid system role '${String(targetRole)}'.`;
+  }
+  const role = targetRole as UserRole;
+  const currentRole = target.currentRole ?? null;
+  if (currentRole === role) return null; // no change
+
+  const isSelf =
+    (!!target.userId && target.userId === actor.id) ||
+    (!!target.employeeId && !!actor.employeeId && target.employeeId === actor.employeeId);
+  if (isSelf) return 'You cannot change your own system role.';
+
+  const touchesPrivileged =
+    PRIVILEGED_ROLES.includes(role) || (currentRole !== null && PRIVILEGED_ROLES.includes(currentRole));
+  if (touchesPrivileged && actor.role !== 'SUPER_ADMIN') {
+    return 'Only a Super Admin can grant or remove the Super Admin and HR roles.';
+  }
+  return null;
 }

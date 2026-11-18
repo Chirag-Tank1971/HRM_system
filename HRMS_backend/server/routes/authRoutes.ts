@@ -11,10 +11,15 @@ import {
   verifyTokenString,
   recordAuditLog,
   getImpersonatorId,
+  invalidateAuthCache,
   AuthenticatedRequest,
 } from '../auth.js';
 import { validateBody, LoginSchema, ChangePasswordSchema } from '../validation.js';
 import { User, Employee, Role, UserRole } from '../../src/types/index.js';
+import { currentTenantId, runWithTenant } from '../core/tenantContext.js';
+import { resolveLoginTenant } from '../core/tenants.js';
+import { passwordPolicyError } from '../core/passwordPolicy.js';
+import { redeemPasswordLink, sendPasswordLink } from '../core/passwordLinks.js';
 
 export const authRouter = express.Router();
 
@@ -27,12 +32,37 @@ const WARN_AFTER_FAILURES = 2; // start showing warning after this many failures
 interface FailEntry { count: number; firstFailAt: number; }
 const loginFailMap = new Map<string, FailEntry>();
 
+// req.ip honours Express's `trust proxy` setting (see app.ts), so a client cannot pick its own
+// address by sending an X-Forwarded-For header.
 function getClientIp(req: Request): string {
-  return (
-    (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-    req.socket.remoteAddress ||
-    'unknown'
-  );
+  return req.ip || req.socket.remoteAddress || 'unknown';
+}
+
+// Per-account lockout, on top of the per-IP limit: an attacker rotating IP addresses still
+// gets only MAX_ACCOUNT_FAILURES guesses per account per window.
+const MAX_ACCOUNT_FAILURES = 10;
+const ACCOUNT_LOCK_WINDOW_MS = 15 * 60 * 1000;
+const accountFailMap = new Map<string, FailEntry>();
+const accountKey = (userId: string) => `${currentTenantId()}:${userId}`;
+
+function isAccountLocked(userId: string): boolean {
+  const entry = accountFailMap.get(accountKey(userId));
+  if (!entry) return false;
+  if (Date.now() - entry.firstFailAt > ACCOUNT_LOCK_WINDOW_MS) {
+    accountFailMap.delete(accountKey(userId));
+    return false;
+  }
+  return entry.count >= MAX_ACCOUNT_FAILURES;
+}
+
+function recordAccountFailure(userId: string): void {
+  const key = accountKey(userId);
+  const entry = accountFailMap.get(key);
+  if (!entry || Date.now() - entry.firstFailAt > ACCOUNT_LOCK_WINDOW_MS) {
+    accountFailMap.set(key, { count: 1, firstFailAt: Date.now() });
+  } else {
+    entry.count += 1;
+  }
 }
 
 function recordFailure(ip: string): number {
@@ -59,6 +89,28 @@ const DUMMY_BCRYPT_HASH = bcrypt.hashSync(`unused-${Date.now()}-${Math.random()}
  * Authenticates user by email and password with runtime input validation and token lifecycle support
  */
 authRouter.post('/login', validateBody(LoginSchema), async (req: Request, res: Response) => {
+  try {
+    const resolved = await resolveLoginTenant(req);
+    if (resolved.ok === false) {
+      if (resolved.code === 'COMPANY_CODE_REQUIRED') {
+        return res.status(400).json({
+          error: 'Enter your company code to sign in.',
+          code: 'COMPANY_CODE_REQUIRED',
+        });
+      }
+      // Unknown or suspended company: same response as a wrong password, so codes can't be probed.
+      bcrypt.compareSync(String(req.body?.password ?? ''), DUMMY_BCRYPT_HASH);
+      recordFailure(getClientIp(req));
+      return res.status(401).json({ error: 'Invalid email or password.' });
+    }
+    return await runWithTenant(resolved.tenant.id, () => handleLogin(req, res));
+  } catch (error: any) {
+    console.error('Login error:', error);
+    res.status(500).json({ error: 'Internal server error during authentication.' });
+  }
+});
+
+async function handleLogin(req: Request, res: Response) {
   try {
     const { email, password } = req.body;
     const ip = getClientIp(req);
@@ -92,9 +144,18 @@ authRouter.post('/login', validateBody(LoginSchema), async (req: Request, res: R
       return res.status(403).json({ error: 'Account is deactivated. Contact system administrator.' });
     }
 
+    if (isAccountLocked(user.id)) {
+      bcrypt.compareSync(password, DUMMY_BCRYPT_HASH);
+      console.warn(`[Auth] Login blocked: account "${user.email}" is temporarily locked after repeated failures (IP: ${ip})`);
+      return res.status(429).json({
+        error: 'Too many failed sign-in attempts for this account. Please wait 15 minutes and try again.',
+      });
+    }
+
     // Strict cryptographic verification against user's stored bcrypt hash
     const isPasswordValid = Boolean(user.passwordHash && bcrypt.compareSync(password, user.passwordHash));
     if (!isPasswordValid) {
+      recordAccountFailure(user.id);
       const failCount = recordFailure(ip);
       const remainingAttempts = Math.max(0, MAX_LOGIN_ATTEMPTS - failCount);
       console.warn(`[Auth] Login failed: Incorrect password for "${user.email}" from IP: ${ip} (Failed attempts: ${failCount}/${MAX_LOGIN_ATTEMPTS})`);
@@ -103,8 +164,9 @@ authRouter.post('/login', validateBody(LoginSchema), async (req: Request, res: R
       return res.status(401).json(payload);
     }
 
-    // ✅ Successful login — clear the fail counter
+    // ✅ Successful login — clear the fail counters
     clearFailures(ip);
+    accountFailMap.delete(accountKey(user.id));
 
     const tokenVersion = user.tokenVersion ?? 1;
     const token = generateAccessToken(user);
@@ -173,7 +235,7 @@ authRouter.post('/login', validateBody(LoginSchema), async (req: Request, res: R
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error during authentication.' });
   }
-});
+}
 
 
 /**
@@ -371,19 +433,21 @@ authRouter.post('/logout', async (req: AuthenticatedRequest, res: Response) => {
     if (token) {
       const user = await verifyTokenString(token);
       if (user) {
-        // Invalidate active session tokens on logout
-        await revokeUserSessions(user.id);
-        await recordAuditLog(
-          user.id,
-          user.name,
-          user.role,
-          'AUTHENTICATION',
-          'USER_LOGOUT',
-          user.id,
-          '',
-          '',
-          `User ${user.email} logged out (sessions invalidated)`
-        );
+        await runWithTenant((user as any).tenantId, async () => {
+          // Invalidate active session tokens on logout
+          await revokeUserSessions(user.id);
+          await recordAuditLog(
+            user.id,
+            user.name,
+            user.role,
+            'AUTHENTICATION',
+            'USER_LOGOUT',
+            user.id,
+            '',
+            '',
+            `User ${user.email} logged out (sessions invalidated)`
+          );
+        });
       }
     }
   } catch (err) {
@@ -419,6 +483,7 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
       });
     }
 
+    await runWithTenant(refreshResult!.tenantId, async () => {
     console.log(`[Auth] Session refreshed for "${user.name}" (${user.email}) [Role: ${user.role}]`);
 
     const currentVersion = user.tokenVersion ?? 1;
@@ -462,6 +527,7 @@ authRouter.post('/refresh', async (req: Request, res: Response) => {
       user: safeUser,
       employeeProfile,
       permissions: roleRecord ? roleRecord.permissions : [],
+    });
     });
   } catch (error: any) {
     console.error('Token refresh error:', error);
@@ -530,10 +596,9 @@ authRouter.put(
 
       const { newPassword } = req.body;
 
-      // Reject common/weak passwords
-      const forbidden = ['password123', 'Welcome@2026', 'password', '12345678', 'admin123'];
-      if (forbidden.includes(newPassword.toLowerCase())) {
-        return res.status(400).json({ error: 'This password is too common. Please choose a stronger password.' });
+      const policyError = passwordPolicyError(newPassword, req.user);
+      if (policyError) {
+        return res.status(400).json({ error: policyError });
       }
 
       const usersCol = getDbCollection('users');
@@ -567,6 +632,7 @@ authRouter.put(
         `User ${req.user.email} changed their password (previous sessions invalidated)`
       );
 
+      invalidateAuthCache(req.user.id);
       console.log(`[Auth] Password updated for "${req.user.name}" (${req.user.email}). Sessions rotated to tokenVersion: ${updatedTokenVersion}`);
 
       const safeUser: User = {
@@ -600,3 +666,92 @@ authRouter.put(
     }
   }
 );
+
+// ---------------------------------------------------------------------------
+// Password reset by email link
+// ---------------------------------------------------------------------------
+const GENERIC_RESET_REPLY = {
+  success: true,
+  message: 'If an account matches, a reset link has been sent to its email address.',
+};
+
+/**
+ * POST /api/auth/forgot-password
+ * Always answers the same way, whether or not the account exists, so it cannot be used to
+ * discover who has an account.
+ */
+authRouter.post('/forgot-password', async (req: Request, res: Response) => {
+  try {
+    const identifier = String(req.body?.email ?? '').trim();
+    if (!identifier || identifier.length > 254) return res.json(GENERIC_RESET_REPLY);
+
+    const resolved = await resolveLoginTenant(req);
+    if (resolved.ok === false) {
+      if (resolved.code === 'COMPANY_CODE_REQUIRED') {
+        return res.status(400).json({ error: 'Enter your company code.', code: 'COMPANY_CODE_REQUIRED' });
+      }
+      return res.json(GENERIC_RESET_REPLY);
+    }
+
+    await runWithTenant(resolved.tenant.id, async () => {
+      const usersCol = getDbCollection('users');
+      let user = null;
+      if (identifier.includes('@')) {
+        user = await usersCol.findOne({ email: identifier.toLowerCase() });
+      } else {
+        const emp = await getDbCollection('employees').findOne({ employeeCode: identifier.toUpperCase() });
+        if (emp) user = await usersCol.findOne({ employeeId: emp.id });
+      }
+      if (user && user.active !== false && user.email) {
+        // Not awaited: the reply must take the same time whether or not the account exists.
+        void sendPasswordLink(user, 'RESET').catch((err) => console.error('Password reset email failed:', err));
+        await recordAuditLog(user.id, user.name, user.role, 'AUTHENTICATION', 'PASSWORD_RESET_REQUESTED', user.id, '', '', `Password reset link requested for ${user.email}`);
+      }
+    });
+    res.json(GENERIC_RESET_REPLY);
+  } catch (error: any) {
+    console.error('Forgot password error:', error);
+    res.json(GENERIC_RESET_REPLY);
+  }
+});
+
+class PasswordPolicyRejection extends Error {}
+
+/**
+ * POST /api/auth/reset-password
+ * Sets a new password using a single-use link token, and signs out every existing session.
+ */
+authRouter.post('/reset-password', async (req: Request, res: Response) => {
+  const INVALID_LINK = 'This link is invalid or has expired. Request a new one.';
+  try {
+    const token = String(req.body?.token ?? '');
+    const newPassword = req.body?.newPassword;
+    if (!token) return res.status(400).json({ error: INVALID_LINK });
+
+    const outcome = await redeemPasswordLink(token, async (user) => {
+      const policyError = passwordPolicyError(newPassword, user);
+      if (policyError) throw new PasswordPolicyRejection(policyError);
+      await getDbCollection('users').updateOne(
+        { id: user.id },
+        {
+          $set: {
+            passwordHash: bcrypt.hashSync(newPassword, 12),
+            mustChangePassword: false,
+            tokenVersion: (user.tokenVersion ?? 1) + 1,
+            updatedAt: new Date().toISOString(),
+          },
+        }
+      );
+      invalidateAuthCache(user.id);
+      await recordAuditLog(user.id, user.name, user.role, 'AUTHENTICATION', 'PASSWORD_RESET', user.id, '', '', `Password set by email link for ${user.email} (sessions invalidated)`);
+      return true;
+    });
+
+    if (outcome.ok === false) return res.status(400).json({ error: INVALID_LINK });
+    res.json({ success: true, message: 'Your password has been set. You can now sign in.' });
+  } catch (error: any) {
+    if (error instanceof PasswordPolicyRejection) return res.status(400).json({ error: error.message });
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Failed to reset password.' });
+  }
+});
