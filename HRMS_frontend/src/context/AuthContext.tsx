@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useRef, ReactNod
 import { User, Employee, UserRole } from '../types';
 import { api } from '../services/api';
 import { toast } from './ToastContext';
+import { resetCompanyName } from '../hooks/useCompanyName';
 
 interface AuthContextType {
   user: User | null;
@@ -143,6 +144,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       // URL-only, so without this a stale, differently-scoped response (e.g. another
       // user's employee list) can be served for up to its TTL after switching accounts.
       api.clearCache();
+      resetCompanyName();
       localStorage.setItem('review_app_token', data.token);
       setToken(data.token);
       setUser(data.user);
@@ -163,6 +165,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       const data = await api.switchRole(role, userId);
       api.clearCache();
+      resetCompanyName();
       localStorage.setItem('review_app_token', data.token);
       setToken(data.token);
       setUser(data.user);
@@ -184,6 +187,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       await api.logout().catch(() => {});
       api.clearCache();
+      resetCompanyName();
       localStorage.removeItem('review_app_token');
       setUser(null);
       setEmployeeProfile(null);

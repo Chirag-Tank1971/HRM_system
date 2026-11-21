@@ -5,14 +5,27 @@ import { hrApi } from '../services/hrApi';
 let cached: string | null = null;
 let pending: Promise<string> | null = null;
 
+/** Forget the cached name. Called on sign-in, sign-out and role switch so a different company never sees it. */
+export function resetCompanyName(): void {
+  cached = null;
+  pending = null;
+  generation++;
+}
+let generation = 0;
+
 function loadCompanyName(): Promise<string> {
   if (cached !== null) return Promise.resolve(cached);
   if (!pending) {
+    const gen = generation;
     pending = hrApi
       .getCompany()
-      .then((c) => (cached = c?.name || ''))
+      .then((c) => {
+        const name = c?.name || '';
+        if (gen === generation) cached = name; // a reply from before a sign-out is never kept
+        return name;
+      })
       .catch(() => {
-        pending = null; // try again next time
+        if (gen === generation) pending = null; // try again next time
         return '';
       });
   }

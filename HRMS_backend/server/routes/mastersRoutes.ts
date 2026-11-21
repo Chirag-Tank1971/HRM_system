@@ -17,6 +17,8 @@ import { syncEmployeeAppraisalsAndReviews, resyncUnscoredReviewKraSnapshots } fr
 import { sendNotificationEmail } from '../services/emailService.js';
 import { renderEmployeeWelcomeEmail } from '../services/emailTemplates.js';
 import { ensureDefaultCycles } from '../core/cycles.js';
+import { getTenantById } from '../core/tenants.js';
+import { currentTenantId } from '../core/tenantContext.js';
 
 export const mastersRouter = express.Router();
 
@@ -1120,7 +1122,8 @@ mastersRouter.post('/employees', requireRoles('SUPER_ADMIN', 'HR'), async (req: 
       gender: gender ? gender.trim() : undefined,
       employmentType: employmentType ? employmentType.trim() : undefined,
       probationPeriodDays: probationPeriodDays !== undefined && probationPeriodDays !== '' ? Number(probationPeriodDays) : undefined,
-      companyName: companyName ? companyName.trim() : undefined,
+      // Left blank, a new employee belongs to the signed-in company (taken from the server, never the browser)
+      companyName: (companyName && String(companyName).trim()) || (await getTenantById(currentTenantId()!))?.name || undefined,
       createdAt: new Date().toISOString(),
     };
 
