@@ -114,7 +114,9 @@ const TooltipBox: React.FC<{ title: string; rows: TooltipRow[] }> = ({ title, ro
 );
 
 /** A visually hidden table so screen-reader users get the same numbers as the chart. */
+// Wrapped in a zero-size relative box so the absolutely positioned table can never extend the page.
 const SrTable: React.FC<{ caption: string; headers: string[]; rows: Array<Array<string | number>> }> = ({ caption, headers, rows }) => (
+  <div className="relative w-0 h-0 overflow-hidden">
   <table className="sr-only">
     <caption>{caption}</caption>
     <thead>
@@ -126,6 +128,7 @@ const SrTable: React.FC<{ caption: string; headers: string[]; rows: Array<Array<
       ))}
     </tbody>
   </table>
+  </div>
 );
 
 const axisTick = (theme: ChartTheme) => ({ fill: theme.axis, fontSize: 11 });
