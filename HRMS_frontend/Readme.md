@@ -1,6 +1,6 @@
 # 💻 Arisotech HRMS — Frontend Client
 
-Modern, responsive React 19 + TypeScript Single Page Application (SPA) for Enterprise Performance Reviews, Employee Self-Service (ESS), Calibration Matrix, Sales Champions Leaderboard, and Appraisal Management.
+Modern, responsive React 19 + TypeScript Single Page Application (SPA) for Enterprise Performance Reviews, Employee Self-Service (ESS), Calibration Matrix, Sales Achievement plans, and Appraisal Management.
 
 ---
 
@@ -9,12 +9,12 @@ Modern, responsive React 19 + TypeScript Single Page Application (SPA) for Enter
 - **Framework:** React 19 with TypeScript 5.8
 - **Build Tool:** Vite 6.x
 - **Styling:** Tailwind CSS v4 (utility-first, responsive layouts, full light/dark themes)
-- **Routing:** Modern HTML5 Path-based Routing (`/dashboard`, `/reviews`, `/appraisals`, `/sales_champs`, `/employees`, `/hierarchy`, `/pip`) via Browser History API
+- **Routing:** Modern HTML5 Path-based Routing (`/dashboard`, `/reviews`, `/appraisals`, `/sales_achievement`, `/employees`, `/hierarchy`, `/pip`) via Browser History API
 - **Motion & Animations:** Framer Motion (`framer-motion`)
 - **Icons:** Lucide React (`lucide-react`)
 - **State & Context:** React Context API (`AuthContext`, `ToastContext`, `ThemeContext`, `NotificationsContext`)
 - **Data Visualization & Charts:** Recharts for bell curves, talent 9-box grids, score distributions, and executive KPIs
-- **Data Exporting:** SheetJS (`xlsx`) & `papaparse` for Excel/CSV generation; `jspdf` & `html2canvas` for appraisal letters and Sales Champions PDF reports
+- **Data Exporting:** SheetJS (`xlsx`) & `papaparse` for Excel/CSV generation; `jspdf` & `html2canvas` for appraisal letters and sales achievement plan PDFs
 
 ---
 
@@ -39,7 +39,7 @@ HRMS_frontend/
 │   ├── services/
 │   │   └── api.ts                  # Centralized typed HTTP client with auto-JWT headers
 │   ├── utils/
-│   │   ├── salesChampsExport.ts    # PDF certificate & Excel export engine for sales champions
+│   │   ├── salesChampsExport.ts    # Printable / PDF sales achievement plan
 │   │   └── cn.ts                   # Tailwind class merge utility
 │   └── components/
 │       ├── LoginPage.tsx           # Modern enterprise login page with one-click personas
@@ -47,8 +47,8 @@ HRMS_frontend/
 │       ├── MobileNavDrawer.tsx     # Responsive mobile navigation drawer
 │       ├── QuarterlyReviewView.tsx # 4-quarter review management & scoring modal
 │       ├── AppraisalManagementView.tsx # Annual appraisal cohort calibration, letters & payouts
-│       ├── SalesChampsView.tsx     # Sales champions leaderboard, metrics & target attainment
-│       ├── SalesChampsReportModal.tsx # Incentive scheme scorecard editor & multi-format export
+│       ├── SalesChampsView.tsx     # Sales achievement plans list & employee view
+│       ├── SalesChampsReportModal.tsx # Create / edit a sales achievement plan
 │       ├── NotificationsCenterView.tsx # Centralized activity feed with Show More/Hide toggles
 │       ├── PerformanceImprovementPlansView.tsx # PIP tracking, milestones & check-ins
 │       ├── ManagementDashboardView.tsx # Executive compensation & normalization analytics

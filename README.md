@@ -17,7 +17,7 @@ A modern, full-stack enterprise performance management and annual appraisal plat
   - [Annual Appraisal & Salary Increments](#4-annual-appraisal--salary-increments)
   - [Executive & Department Dashboards](#5-executive--department-dashboards)
   - [AI Performance Narrative Synthesis](#6-ai-performance-narrative-synthesis)
-  - [Sales Champions & Incentive Scheme Engine](#7-sales-champions--incentive-scheme-engine)
+  - [Sales Achievement & Incentive Plans](#7-sales-achievement--incentive-plans)
   - [Interactive Notifications Center & Alert Feed](#8-interactive-notifications-center--alert-feed)
   - [HTML5 Clean Routing Architecture](#9-html5-clean-routing-architecture)
   - [Production CORS & Multi-Cloud Deployment Gateway](#10-production-cors--multi-cloud-deployment-gateway)
@@ -89,7 +89,7 @@ HRMS/
 │   │       ├── bulkRoutes.ts        # CSV/Excel import templates, validation, import & export
 │   │       ├── auditRoutes.ts       # Compliance & audit trail explorer
 │   │       ├── emailRoutes.ts       # Email logs, health & test send
-│   │       ├── salesChampsRoutes.ts # Sales targets, incentive schemes, slabs & report locks
+│   │       ├── salesChampsRoutes.ts # Sales achievement plans: targets, incentive tiers & locking
 │   │       └── aiAndFeedbackRoutes.ts # Gemini AI narratives, talent insights & talent records
 │   ├── src/types/                   # Shared TypeScript domain contracts
 │   ├── package.json
@@ -110,8 +110,8 @@ HRMS/
 │   │   │   ├── AppraisalManagementView.tsx  # Appraisal matrix, increments, letter signing
 │   │   │   ├── PerformanceImprovementPlansView.tsx # PIP tracking, milestones, check-ins
 │   │   │   ├── ManagementDashboardView.tsx  # C-suite analytics, department comparisons
-│   │   │   ├── SalesChampsView.tsx          # Sales champions leaderboard, metrics & attainment
-│   │   │   ├── SalesChampsReportModal.tsx   # Detailed incentive scheme scorecard & export
+│   │   │   ├── SalesChampsView.tsx          # Sales achievement plans list, status tiles & employee view
+│   │   │   ├── SalesChampsReportModal.tsx   # Create / edit a sales achievement plan (4-step wizard)
 │   │   │   ├── NotificationsCenterView.tsx  # Activity feed with Show More/Hide controls
 │   │   │   ├── EmployeeDirectory.tsx        # Employee profiles & organizational hierarchy
 │   │   │   ├── ReviewScoringModal.tsx       # 2-step fast-flow and 4-step governance evaluation
@@ -129,7 +129,7 @@ HRMS/
 │   │   ├── services/
 │   │   │   └── api.ts                       # Typed HTTP client with token refresh & error handling
 │   │   ├── utils/
-│   │   │   ├── salesChampsExport.ts         # Client-side PDF & Excel export generator for champions
+│   │   │   ├── salesChampsExport.ts         # Printable / PDF sales achievement plan
 │   │   │   ├── letterExport.ts              # Appraisal letter PDF export
 │   │   │   ├── reviewLetterExport.ts        # Review letter PDF export
 │   │   │   ├── pipLetterExport.ts           # PIP letter PDF export
@@ -223,12 +223,12 @@ Comprehensive lifecycle management for employees requiring structured performanc
 
 ---
 
-### 7. Sales Champions & Incentive Scheme Engine
+### 7. Sales Achievement & Incentive Plans
 Dedicated sales performance tracking, milestone recognition, and incentive compensation governance module:
 - **Annual & Quarterly Sales Targets**: Tracks Gross Margin 2 (`gm2TargetCr`) targets and achievements across financial years.
-- **Incentive Slabs & Attainment Tiers**: Tiered reward matrices (e.g. 80%–99%, 100%–119%, 120%+) with calculated payout percentages and Mint Value recognition criteria.
+- **Incentive Slabs & Attainment Tiers**: Tiered reward matrices (e.g. 80%–99%, 100%–119%, 120%+) with calculated payout percentages and an optional company motto on the printed plan.
 - **Governance Lifecycle (`DRAFT` $\rightarrow$ `FINAL` $\rightarrow$ `LOCKED`)**: HR or Super Admin drafts and finalizes a report; only a Super Admin can lock it. Employees get read-only access once it is locked.
-- **Client-Side Multi-Format Export**: Generates professional branded PDF achievement certificates via `jspdf`/`html2canvas` and spreadsheet reports via SheetJS `xlsx` (`salesChampsExport.ts`).
+- **Client-Side Multi-Format Export**: Generates PDF sales achievement plans branded with the company's own name via `jspdf`/`html2canvas` and spreadsheet reports via SheetJS `xlsx` (`salesChampsExport.ts`).
 
 ---
 
@@ -240,7 +240,7 @@ Dedicated sales performance tracking, milestone recognition, and incentive compe
 ---
 
 ### 9. HTML5 Clean Routing Architecture
-- **Path-Based Navigation**: Modern URL schema (`/dashboard`, `/management`, `/reviews`, `/appraisals`, `/calibration`, `/sales_champs`, `/reports`, `/employees`, `/hierarchy`, `/pip`, `/kras`, `/ai_performance`, `/bulk`, `/audit`, `/notifications`) powered by the HTML5 History API (`pushState`, `replaceState`, `popstate`), completely eliminating hash fragment routing (`#`).
+- **Path-Based Navigation**: Modern URL schema (`/dashboard`, `/management`, `/reviews`, `/appraisals`, `/calibration`, `/sales_achievement`, `/reports`, `/employees`, `/hierarchy`, `/pip`, `/kras`, `/ai_performance`, `/bulk`, `/audit`, `/notifications`) powered by the HTML5 History API (`pushState`, `replaceState`, `popstate`), completely eliminating hash fragment routing (`#`).
 - **Backward Compatibility**: Automatically catches legacy bookmark hashes (`/#dashboard`) and smoothly elevates them to clean URLs.
 - **Dynamic Role-Based Landing**: Automatically redirects root visits (`/`) to the authenticated user's designated workspace home view.
 - **SPA Fallback Ready**: Configured for Vite development and seamless production deployment on Express and Nginx (`try_files $uri $uri/ /index.html;`).
@@ -249,7 +249,7 @@ Dedicated sales performance tracking, milestone recognition, and incentive compe
 
 ### 10. Production CORS & Multi-Cloud Deployment Gateway
 - **Multi-Environment Origin Authorization**: Dynamic CORS middleware in `server.ts` safely validating production domains, local development ports, and wildcard subdomains.
-- **Vercel Preview Auto-Matching**: Built-in pattern recognition that instantly accommodates dynamic Vercel PR and preview deployment URLs (e.g., `mint-review-system*.vercel.app` and `*chirag-tank1971s-projects.vercel.app`) without requiring manual environment variable reconfiguration on every commit.
+- **Vercel Preview Auto-Matching**: Built-in pattern recognition that instantly accommodates dynamic Vercel PR and preview deployment URLs (e.g., `arisotech*.vercel.app` and `*chirag-tank1971s-projects.vercel.app`) without requiring manual environment variable reconfiguration on every commit.
 - **Strict Preflight Handling**: Explicit `OPTIONS` preflight middleware routing guaranteeing fast 204 No Content responses across all API endpoints.
 
 ---
@@ -439,13 +439,13 @@ VITE_ENABLE_DEMO_PERSONAS=false
 | `POST /api/gemini/talent-insights-summary` | AI Synthesis | Generates a Gemini talent insights summary |
 | `GET /api/audit/logs` | Compliance | Queries the audit trail (also `/summary`, `/timeline/:employeeId`, `/export`) |
 | `GET /api/bulk/templates/:type` | Bulk Data | Downloads an import template (also `/validate`, `/import`, `/export`, `/history`) |
-| `GET /api/sales-champs` | Sales Champions | Lists sales champion incentive reports with filter by FY and status |
-| `GET /api/sales-champs/employee/:employeeId` | Sales Champions | Retrieves locked incentive report for an employee |
-| `POST /api/sales-champs` | Sales Champions | Creates new sales target and slab scorecard in DRAFT status |
-| `PUT /api/sales-champs/:id` | Sales Champions | Updates target values, incentive slabs, and recognition rules |
-| `POST /api/sales-champs/:id/finalize` | Sales Champions | Moves the report from DRAFT to FINAL |
-| `POST /api/sales-champs/:id/lock` | Sales Champions | Locks and officially publishes the incentive report (Super Admin) |
-| `DELETE /api/sales-champs/:id` | Sales Champions | Deletes a sales champ report (Super Admin) |
+| `GET /api/sales-champs` | Sales Achievement | Lists sales achievement plans with filter by FY and status |
+| `GET /api/sales-champs/employee/:employeeId` | Sales Achievement | Retrieves an employee's locked plan |
+| `POST /api/sales-champs` | Sales Achievement | Creates a new plan (target and incentive tiers) in DRAFT status |
+| `PUT /api/sales-champs/:id` | Sales Achievement | Updates the target, incentive tiers and terms |
+| `POST /api/sales-champs/:id/finalize` | Sales Achievement | Moves the plan from DRAFT to FINAL |
+| `POST /api/sales-champs/:id/lock` | Sales Achievement | Locks the plan and shares it with the employee (Super Admin) |
+| `DELETE /api/sales-champs/:id` | Sales Achievement | Deletes a plan that is not locked (Super Admin) |
 | `GET /api/notifications` | Notifications | Retrieves the user's notification activity feed |
 | `PUT /api/notifications/:id/read` | Notifications | Marks specific notification as read |
 | `PUT /api/notifications/read-all` | Notifications | Marks all user notifications as read |

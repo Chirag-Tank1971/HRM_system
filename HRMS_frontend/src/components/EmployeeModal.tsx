@@ -7,6 +7,7 @@ import { useAuth } from '../context/AuthContext';
 import { CustomKraScorecardModal, CustomKraRow } from './CustomKraScorecardModal';
 import { MasterDeleteModal, MasterDeleteTarget } from './MasterDeleteModal';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useCompanyName } from '../hooks/useCompanyName';
 
 function defaultCustomKraRows(): CustomKraRow[] {
   return [
@@ -247,7 +248,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
   const [gender, setGender] = useState<'Male' | 'Female' | 'Other' | string>('Male');
   const [employmentType, setEmploymentType] = useState('Permanent');
   const [probationPeriodDays, setProbationPeriodDays] = useState<number | string>(90);
-  const [companyName, setCompanyName] = useState('M INTERGRAPH SYSTEMS PRIVATE LIMITED');
+  const tenantCompanyName = useCompanyName();
+  const [companyName, setCompanyName] = useState('');
 
   // Past / Inactive state helpers
   const wasPastEmployee = Boolean(employeeToEdit?.status === 'INACTIVE') || Boolean(employeeToEdit?.isPastEmployee) || Boolean(rehireTarget);
@@ -453,7 +455,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setGender(employeeToEdit.gender || 'Male');
       setEmploymentType(employeeToEdit.employmentType || 'Permanent');
       setProbationPeriodDays(employeeToEdit.probationPeriodDays !== undefined ? employeeToEdit.probationPeriodDays : 90);
-      setCompanyName(employeeToEdit.companyName || 'M INTERGRAPH SYSTEMS PRIVATE LIMITED');
+      setCompanyName(employeeToEdit.companyName || '');
       if (initialRehire) {
         setStatus('ACTIVE');
         const todayStr = new Date().toISOString().split('T')[0];
@@ -536,7 +538,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
       setGender('Male');
       setEmploymentType('Permanent');
       setProbationPeriodDays(90);
-      setCompanyName('M INTERGRAPH SYSTEMS PRIVATE LIMITED');
+      setCompanyName('');
       const suggestedCycle = getSuggestedCycle(todayStr, activeCycles);
       setCycleId(suggestedCycle?.id || activeCycles[0]?.id || '');
       setHasUserManuallyChangedCycle(false);
@@ -583,7 +585,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
     setGender(pastEmp.gender || 'Male');
     setEmploymentType(pastEmp.employmentType || 'Permanent');
     setProbationPeriodDays(pastEmp.probationPeriodDays !== undefined ? pastEmp.probationPeriodDays : 90);
-    setCompanyName(pastEmp.companyName || 'M INTERGRAPH SYSTEMS PRIVATE LIMITED');
+    setCompanyName(pastEmp.companyName || '');
     const suggestedRehireCycle = getSuggestedCycle(todayStr, activeCycles);
     setCycleId(suggestedRehireCycle?.id || activeCycles[0]?.id || '');
     setHasUserManuallyChangedCycle(false);
@@ -708,7 +710,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         const desName = (emp.designationName || empDes?.name || '').toLowerCase();
 
         const isOfficialDeptHod = departments.some((d) => d.hodId === emp.id || d.hodId === emp.employeeCode);
-        const isOrgWideHod = emp.systemRole === 'HOD' || (emp as any).role === 'HOD' || emp.employeeCode === 'MS0016';
+        const isOrgWideHod = emp.systemRole === 'HOD' || (emp as any).role === 'HOD';
         const isHodTitle =
           desName.includes('hod') ||
           desName.includes('head of') ||
@@ -720,8 +722,8 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
         return isOfficialDeptHod || isOrgWideHod || isHodTitle || isEmployeeHod(emp);
       })
       .sort((a, b) => {
-        const aIsOfficial = a.employeeCode === 'MS0016' || selectedDeptObj?.hodId === a.id;
-        const bIsOfficial = b.employeeCode === 'MS0016' || selectedDeptObj?.hodId === b.id;
+        const aIsOfficial = selectedDeptObj?.hodId === a.id;
+        const bIsOfficial = selectedDeptObj?.hodId === b.id;
         if (aIsOfficial && !bIsOfficial) return -1;
         if (!aIsOfficial && bIsOfficial) return 1;
 
@@ -911,7 +913,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
             gender: gender || undefined,
             employmentType: employmentType || undefined,
             probationPeriodDays: status === 'PROBATION' && probationPeriodDays !== '' ? Number(probationPeriodDays) : undefined,
-            companyName: companyName.trim() || undefined,
+            companyName: companyName.trim() || tenantCompanyName || undefined,
             cycleId,
             startingReviewPeriodId,
             managerId: finalPrimaryManagerId,
@@ -958,7 +960,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
           gender: gender || undefined,
           employmentType: employmentType || undefined,
           probationPeriodDays: status === 'PROBATION' && probationPeriodDays !== '' ? Number(probationPeriodDays) : undefined,
-          companyName: companyName.trim() || undefined,
+          companyName: companyName.trim() || tenantCompanyName || undefined,
           cycleId,
           startingReviewPeriodId,
           managerId: finalPrimaryManagerId,
@@ -1195,7 +1197,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       disabled={isInactive}
                       value={employeeCode}
                       onChange={(e) => setEmployeeCode(e.target.value.toUpperCase())}
-                      placeholder="MS0001"
+                      placeholder="EMP001"
                       className="w-full border rounded-xl pl-9 pr-3 py-2 text-xs tabular-nums bg-white dark:bg-slate-800 text-slate-900 dark:text-white border-slate-200 dark:border-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/60"
                     />
                   </div>
@@ -1728,7 +1730,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       disabled={isInactive}
                       value={companyName}
                       onChange={(e) => setCompanyName(e.target.value)}
-                      placeholder="M INTERGRAPH SYSTEMS PRIVATE LIMITED"
+                      placeholder={tenantCompanyName || "Company legal name"}
                       className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-9 pr-3 py-2 text-xs text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600/10 focus:border-indigo-500 disabled:opacity-60 disabled:cursor-not-allowed disabled:bg-slate-100 dark:disabled:bg-slate-800/60"
                     />
                   </div>
@@ -1918,7 +1920,7 @@ export const EmployeeModal: React.FC<EmployeeModalProps> = ({
                       {isTargetHod ? 'Self / Executive Head of Department' : 'Select Head of Department (HOD) *'}
                     </option>
                     {departmentHods.map((emp) => {
-                      const isOfficial = emp.id === selectedDeptObj?.hodId || emp.employeeCode === 'MS0016';
+                      const isOfficial = emp.id === selectedDeptObj?.hodId;
                       return (
                         <option key={emp.id} value={emp.id}>
                           {emp.name} ({emp.designationName || 'HOD'}{emp.departmentName ? ` • ${emp.departmentName}` : ''}){isOfficial ? ' (official HOD)' : ''}

@@ -7,6 +7,7 @@ import {
 import { Employee, Department } from '../types';
 import { ChampsReportData, ChampsSlab, DEFAULT_CHAMPS_RULES, ChampsRules, printChampsReport, downloadChampsPdf, financialYearFor } from '../utils/salesChampsExport';
 import { useModalAnimation } from '../hooks/useModalAnimation';
+import { useCompanyName } from '../hooks/useCompanyName';
 import { Button } from './ui/Button';
 
 export interface SalesChampsReport {
@@ -39,10 +40,11 @@ interface Props {
 
 const EMPTY_SLAB: ChampsSlab = { amcTargetLacs: 0, amcIncentiveLacs: 0, gm2AchievementLacs: 0, salesIncentiveLacs: 0 };
 
-const STEP_LABELS = ['Employee & Target', 'Incentive Slabs', 'Terms & Conditions', 'Preview'];
+const STEP_LABELS = ['Employee & target', 'Incentive tiers', 'Terms & conditions', 'Preview'];
 
 export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, departments, existingReports = [], onSave, onClose }) => {
   const { isMounted, handleClose, backdropClass, cardClass } = useModalAnimation({ onClose });
+  const companyName = useCompanyName();
 
   const [step, setStep] = useState(0);
   const [isSaving, setIsSaving] = useState(false);
@@ -75,7 +77,8 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
   const [targetUnit, setTargetUnit] = useState<'Cr' | 'Lacs'>(initialTarget.unit);
 
   const gm2TargetCr = targetNumber.trim() ? `${targetNumber.trim()} ${targetUnit}` : '';
-  const [mintValue, setMintValue] = useState(report?.mintValue || 'Strive for Excellence');
+  // Stored as `mintValue` for older records; shown as the optional company motto
+  const [mintValue, setMintValue] = useState(report?.mintValue || '');
   const [incentiveSchemeName, setIncentiveSchemeName] = useState(report?.incentiveSchemeName || '');
 
   // ── Step 2: Slabs (4 rows)
@@ -137,6 +140,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
     : report?.employeeName || '';
 
   const champsData: ChampsReportData = {
+    companyName,
     employeeName,
     financialYear,
     fyDateRange,
@@ -150,7 +154,8 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
   };
 
   // Unsaved-changes guard: compare the form against how it looked when it opened
-  const formSnapshot = JSON.stringify({ employeeId, ...champsData });
+  const { companyName: _company, ...formFields } = champsData;
+  const formSnapshot = JSON.stringify({ employeeId, ...formFields });
   const initialSnapshot = useRef(formSnapshot);
   const isDirty = formSnapshot !== initialSnapshot.current;
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
@@ -216,7 +221,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
 
   const RULE_LABELS: Record<keyof ChampsRules, string> = {
     collectionRiders: 'Collection Riders (payment timing multipliers)',
-    mintAiMultiplier: 'MINT-AI™ Solutions 1.15× multiplier',
+    mintAiMultiplier: 'Focus products / solutions 1.15× multiplier',
     q1Qualifier: 'Q1 Target qualifier (25% by Jun 30)',
     teamPerformanceLink: 'Team performance incentive linkage',
     oemBackend: '50% OEM back-end scheme in Contribution',
@@ -235,14 +240,14 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
       <div className={`relative w-full max-w-3xl bg-white dark:bg-slate-900 rounded-2xl shadow-xl border border-slate-200 dark:border-slate-700 flex flex-col max-h-[90vh] ${cardClass}`}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700 bg-gradient-to-r from-[#0d3b5e] to-[#1d4ed8] rounded-t-2xl">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 dark:border-slate-700">
           <div>
-            <h2 className="text-base font-bold text-white">
-              {report?.id ? 'Edit' : 'Create'} MINT Champs Report
+            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+              {report?.id ? 'Edit' : 'New'} sales achievement plan
             </h2>
-            <p className="text-xs text-blue-200 mt-0.5">Sales incentive scheme document</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Annual target, incentive tiers and terms for one salesperson</p>
           </div>
-          <button onClick={requestClose} aria-label="Close" className="p-1.5 rounded-lg text-blue-200 hover:text-white hover:bg-white/10 transition-colors cursor-pointer">
+          <button onClick={requestClose} aria-label="Close" className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer">
             <X className="w-4 h-4" />
           </button>
         </div>
@@ -285,7 +290,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 <div className="col-span-2">
                   <div className="flex items-center justify-between mb-1.5">
                     <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      Sales / Service Employee <span className="text-rose-500">*</span>
+                      Sales / service employee <span className="text-rose-500">*</span>
                     </label>
                     <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white cursor-pointer select-none">
                       <input
@@ -312,7 +317,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                       return (
                         <option key={emp.id} value={emp.id}>
                           {emp.name} ({emp.employeeCode}){tag ? ` — ${tag}` : ''}
-                          {taken ? ` — already has a ${taken.financialYear} report (${(taken.status || 'DRAFT').toLowerCase()})` : ''}
+                          {taken ? ` — already has a ${taken.financialYear} plan (${(taken.status || 'DRAFT').toLowerCase()})` : ''}
                         </option>
                       );
                     })}
@@ -348,10 +353,10 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                       <AlertTriangle className="w-4 h-4 shrink-0 mt-px text-rose-600 dark:text-rose-400" aria-hidden="true" />
                       <div>
                         <p className="font-semibold">
-                          {selectedEmployee?.name || 'This employee'} already has a {conflict.financialYear} report ({(conflict.status || 'DRAFT').toLowerCase()}).
+                          {selectedEmployee?.name || 'This employee'} already has a {conflict.financialYear} plan ({(conflict.status || 'DRAFT').toLowerCase()}).
                         </p>
                         <p className="mt-0.5 text-rose-700 dark:text-rose-400">
-                          A new report can't be created for the same year. Choose another employee or financial year, or edit the existing report from the list.
+                          Only one plan per person per year. Choose another employee or financial year, or edit the existing plan from the list.
                         </p>
                       </div>
                     </div>
@@ -375,7 +380,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Financial Year <span className="text-rose-500">*</span></label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Financial year <span className="text-rose-500">*</span></label>
                   <input
                     type="text"
                     value={financialYear}
@@ -386,7 +391,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">FY Date Range</label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Period</label>
                   <input
                     type="text"
                     value={fyDateRange}
@@ -397,7 +402,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Published Date</label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Published on</label>
                   <input
                     type="text"
                     value={publishedDate}
@@ -409,7 +414,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                    GM2 Individual Target <span className="text-rose-500">*</span>
+                    Individual GM2 target <span className="text-rose-500">*</span>
                   </label>
                   <div className="flex items-center rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 focus-within:ring-2 focus-within:ring-indigo-500 focus-within:border-transparent overflow-hidden">
                     <span className="pl-3 pr-1 text-sm text-slate-500 dark:text-slate-400 font-medium select-none">₹</span>
@@ -439,23 +444,23 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </div>
 
                 <div>
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">MINT Value</label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Company motto <span className="text-slate-400">(optional, shown in the footer)</span></label>
                   <input
                     type="text"
                     value={mintValue}
                     onChange={(e) => setMintValue(e.target.value)}
-                    placeholder="e.g. Strive for Excellence"
+                    placeholder="e.g. Strive for excellence"
                     className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Scheme Name / Subtitle <span className="text-slate-400">(optional)</span></label>
+                  <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1">Plan subtitle <span className="text-slate-400">(optional)</span></label>
                   <input
                     type="text"
                     value={incentiveSchemeName}
                     onChange={(e) => setIncentiveSchemeName(e.target.value)}
-                    placeholder="e.g. added Neeraj portion too"
+                    placeholder="e.g. North region, includes key accounts"
                     className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                   />
                 </div>
@@ -466,16 +471,16 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
           {/* ── STEP 1: Incentive Slabs ── */}
           {step === 1 && (
             <div className="space-y-3">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Enter the 4 incentive milestone rows. These will appear in the slab table on the document.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Enter up to four incentive tiers. Each row is one level of achievement and the incentive it earns.</p>
               <div className="overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-700">
                 <table className="w-full text-sm">
-                  <thead className="bg-[#0d3b5e] text-white text-xs">
+                  <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 text-xs">
                     <tr>
                       <th className="py-2.5 px-3 text-center font-semibold w-8">#</th>
-                      <th className="py-2.5 px-3 text-center font-semibold">AMC Target (Lacs)</th>
-                      <th className="py-2.5 px-3 text-center font-semibold">AMC Incentive (Lacs)</th>
-                      <th className="py-2.5 px-3 text-center font-semibold">GM2 Achievement (Lacs)</th>
-                      <th className="py-2.5 px-3 text-center font-semibold">Sales Incentive (Lacs)</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">AMC target (Lacs)</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">AMC incentive (Lacs)</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">GM2 achieved (Lacs)</th>
+                      <th className="py-2.5 px-3 text-center font-semibold">Sales incentive (Lacs)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -498,7 +503,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </table>
               </div>
               <p className="text-xs text-slate-400 dark:text-slate-500">
-                Tip: The table on the printed document will show exactly these 4 rows with the same column headers.
+                The printed plan shows these rows in the same order.
               </p>
             </div>
           )}
@@ -506,7 +511,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
           {/* ── STEP 2: T&C Toggles ── */}
           {step === 2 && (
             <div className="space-y-4">
-              <p className="text-xs text-slate-500 dark:text-slate-400">Toggle each standard clause on/off. All enabled clauses will appear in the Terms & Conditions section of the document.</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">Choose the standard clauses that apply. Ticked clauses are printed in the plan's terms and conditions.</p>
               <div className="grid grid-cols-1 gap-2">
                 {(Object.keys(DEFAULT_CHAMPS_RULES) as (keyof ChampsRules)[]).map((key) => (
                   <label key={key} className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors">
@@ -521,12 +526,12 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 ))}
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Custom Additional Rule <span className="text-slate-400">(optional)</span></label>
+                <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5">Additional clause <span className="text-slate-400">(optional)</span></label>
                 <textarea
                   rows={3}
                   value={customRuleText}
                   onChange={(e) => setCustomRuleText(e.target.value)}
-                  placeholder="Add any extra custom rule text here..."
+                  placeholder="Any extra condition for this person"
                   className="w-full text-sm border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none resize-none"
                 />
               </div>
@@ -541,7 +546,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                   onClick={() => printChampsReport(champsData)}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs font-semibold transition-colors cursor-pointer"
                 >
-                  <Printer className="w-4 h-4" /> Print Preview
+                  <Printer className="w-4 h-4" /> Print preview
                 </button>
                 <button
                   onClick={handleDownloadPdf}
@@ -553,42 +558,50 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 </button>
               </div>
 
-              {/* Mini summary card */}
+              {/* Summary of what will be printed */}
               <div className="rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden text-sm">
-                <div className="bg-[#0d3b5e] text-white px-5 py-3 flex items-center justify-between">
+                <div className="bg-indigo-950 text-white px-5 py-3 flex flex-wrap items-end justify-between gap-2">
                   <div>
-                    <div className="font-bold text-base">{employeeName || '—'} — MINT Champs <span className="text-emerald-400">{financialYear}</span></div>
-                    <div className="text-xs text-blue-200 mt-0.5">M Intergraph Systems Pvt Ltd | {financialYear} ({fyDateRange})</div>
+                    {companyName && <div className="text-[11px] uppercase tracking-wide text-indigo-200">{companyName}</div>}
+                    <div className="font-semibold text-base">Sales achievement plan {financialYear}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="font-semibold">{employeeName || '—'}</div>
+                    {fyDateRange && <div className="text-xs text-indigo-200">Period {fyDateRange}</div>}
                   </div>
                 </div>
-                <div className="p-4 bg-slate-50 dark:bg-slate-800/40 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
-                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Bottom Line – Individual Target (GM2 Margin)</span>
-                  <span className="text-sm font-extrabold bg-amber-600 text-white px-3 py-1 rounded-md">₹{gm2TargetCr}</span>
+                <div className="h-1 bg-[#eb6834]" aria-hidden="true" />
+                <div className="p-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Individual target (GM2 margin)</span>
+                  <span className="text-lg font-semibold tabular-nums text-slate-900 dark:text-white">₹{gm2TargetCr}</span>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-xs">
-                    <thead className="bg-[#0d3b5e] text-white">
+                  <table className="w-full text-xs tabular-nums">
+                    <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                       <tr>
-                        <th className="py-2 px-3 text-center">AMC Target (L)</th>
-                        <th className="py-2 px-3 text-center">AMC Incentive (L)</th>
-                        <th className="py-2 px-3 text-center">GM2 Achievement (L)</th>
-                        <th className="py-2 px-3 text-center">Sales Incentive (L)</th>
+                        <th className="py-2 px-3 text-left font-medium">Tier</th>
+                        <th className="py-2 px-3 text-right font-medium">AMC target (L)</th>
+                        <th className="py-2 px-3 text-right font-medium">AMC incentive (L)</th>
+                        <th className="py-2 px-3 text-right font-medium">GM2 achieved (L)</th>
+                        <th className="py-2 px-3 text-right font-medium">Sales incentive (L)</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                       {slabs.map((s, i) => (
-                        <tr key={i} className={i % 2 === 0 ? 'bg-slate-50 dark:bg-slate-800/40' : 'bg-white dark:bg-slate-900'}>
-                          <td className="py-2 px-3 text-center font-semibold">{s.amcTargetLacs}</td>
-                          <td className="py-2 px-3 text-center font-semibold">{s.amcIncentiveLacs.toFixed(2)}</td>
-                          <td className="py-2 px-3 text-center font-semibold">{s.gm2AchievementLacs}</td>
-                          <td className="py-2 px-3 text-center font-semibold">{s.salesIncentiveLacs.toFixed(2)}</td>
+                        <tr key={i}>
+                          <td className="py-2 px-3 text-slate-500 dark:text-slate-400">Tier {i + 1}</td>
+                          <td className="py-2 px-3 text-right">{s.amcTargetLacs}</td>
+                          <td className="py-2 px-3 text-right">{s.amcIncentiveLacs.toFixed(2)}</td>
+                          <td className="py-2 px-3 text-right">{s.gm2AchievementLacs}</td>
+                          <td className="py-2 px-3 text-right font-semibold">{s.salesIncentiveLacs.toFixed(2)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-                <div className="bg-[#0d3b5e] px-5 py-2 text-center text-xs text-slate-400">
-                  MINT Value: {mintValue} | solutions@mintergraph.com | www.mintergraph.com
+                <div className="border-t border-slate-100 dark:border-slate-700 px-5 py-2 flex justify-between gap-2 text-[11px] text-slate-500 dark:text-slate-400">
+                  <span>{companyName ? `${companyName} · ` : ''}Internal and confidential</span>
+                  {mintValue && <span>{mintValue}</span>}
                 </div>
               </div>
             </div>
@@ -633,7 +646,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
                 className="flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition-colors disabled:opacity-50 cursor-pointer"
               >
                 {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                {report?.id ? 'Save Changes' : 'Create Report'}
+                {report?.id ? 'Save changes' : 'Create plan'}
               </button>
             )}
           </div>
@@ -654,7 +667,7 @@ export const SalesChampsReportModal: React.FC<Props> = ({ report, employees, dep
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                 {canSaveDraft
                   ? report?.status === 'FINAL'
-                    ? 'Saving moves this report back to Draft so it can be reviewed again.'
+                    ? 'Saving moves this plan back to Draft so it can be reviewed again.'
                     : 'Save it as a draft and finish it later, or discard what you entered.'
                   : 'To save a draft, pick the employee, financial year and GM2 target first.'}
               </p>

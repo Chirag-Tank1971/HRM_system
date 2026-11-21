@@ -37,7 +37,7 @@ function formatZodErrors(error: ZodError): Array<{ field: string; message: strin
 // ============================================================================
 
 export const LoginSchema = z.object({
-  // Work email or employee code (e.g. MS0001). The field keeps its historical name.
+  // Work email or employee code (e.g. EMP001). The field keeps its historical name.
   email: z
     .string()
     .trim()

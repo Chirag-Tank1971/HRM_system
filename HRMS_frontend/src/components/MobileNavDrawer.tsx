@@ -82,7 +82,7 @@ export const MobileNavDrawer: React.FC<MobileNavDrawerProps> = ({
   // Both lists derive from the shared NAV_ITEMS registry (frontend/src/config/navigation.ts)
   // instead of hand-duplicating labels/icons/roles here — see that file's header comment for why.
   const visibleNavItems = NAV_ITEMS.filter(
-    (item) => isNavItemVisible(item, userRole) && (item.id !== 'sales_champs' || showSalesChamps)
+    (item) => isNavItemVisible(item, userRole) && (item.id !== 'sales_achievement' || showSalesChamps)
   );
   const primaryNavItems = visibleNavItems.filter((item) => item.mobileSection === 'primary');
   const adminNavItems = visibleNavItems.filter((item) => item.mobileSection === 'admin');

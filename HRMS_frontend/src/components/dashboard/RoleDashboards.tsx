@@ -12,6 +12,7 @@ import type {
 import { cn } from '../../utils/cn';
 import { api } from '../../services/api';
 import { downloadChampsPdf } from '../../utils/salesChampsExport';
+import { useCompanyName } from '../../hooks/useCompanyName';
 import {
   Card,
   DatesCard,
@@ -450,6 +451,7 @@ export const EmployeeChampsCard: React.FC<{ employeeId?: string; onNavigate: Nav
   const [report, setReport] = React.useState<any | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [downloading, setDownloading] = React.useState(false);
+  const companyName = useCompanyName();
 
   React.useEffect(() => {
     if (!employeeId) {
@@ -473,6 +475,7 @@ export const EmployeeChampsCard: React.FC<{ employeeId?: string; onNavigate: Nav
     setDownloading(true);
     try {
       await downloadChampsPdf({
+        companyName,
         employeeName: report.employeeName,
         financialYear: report.financialYear,
         fyDateRange: report.fyDateRange,
@@ -491,7 +494,7 @@ export const EmployeeChampsCard: React.FC<{ employeeId?: string; onNavigate: Nav
 
   return (
     <Card
-      title={`MINT Champs — ${report.financialYear}`}
+      title={`Sales achievement plan — ${report.financialYear}`}
       subtitle="Your officially approved and locked sales incentive scheme"
       className={cn(
         'border-amber-200 dark:border-amber-900/50 bg-gradient-to-r from-amber-50/60 via-white to-amber-50/30 dark:from-amber-950/20 dark:via-slate-900 dark:to-slate-900',
@@ -514,7 +517,7 @@ export const EmployeeChampsCard: React.FC<{ employeeId?: string; onNavigate: Nav
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => onNavigate('sales_champs')}
+            onClick={() => onNavigate('sales_achievement')}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-750 cursor-pointer shadow-2xs"
           >
             View scheme <ArrowRight className="w-3.5 h-3.5" />

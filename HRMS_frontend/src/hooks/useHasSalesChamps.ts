@@ -6,7 +6,7 @@ import type { UserRole } from '../types';
 const cache = new Map<string, Promise<boolean>>();
 
 /**
- * Whether the Sales Champs nav item should show: always for HR / Super Admin (they manage it),
+ * Whether the Sales achievement nav item should show: always for HR / Super Admin (they manage it),
  * otherwise only once the employee has a locked scheme document to look at.
  */
 export function useHasSalesChamps(role?: UserRole, employeeId?: string): boolean {

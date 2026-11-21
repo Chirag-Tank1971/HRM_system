@@ -2034,14 +2034,14 @@ export const api = {
 
   clearCache: invalidateApiCache,
 
-  // ─── Sales Champs ─────────────────────────────────────────────────────────
+  // ─── Sales achievement plans ─────────────────────────────────────────────────────────
 
   getSalesChampsReports: async (params: { financialYear?: string; status?: string } = {}): Promise<any[]> => {
     const qs = new URLSearchParams();
     if (params.financialYear) qs.set('financialYear', params.financialYear);
     if (params.status) qs.set('status', params.status);
     const res = await fetchWithAutoRefresh(`${API_BASE}/sales-champs?${qs}`, { headers: getAuthHeaders() });
-    if (!res.ok) throw new Error('Failed to load Sales Champs reports.');
+    if (!res.ok) throw new Error('Failed to load sales achievement plans.');
     return res.json();
   },
 
@@ -2051,7 +2051,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed to create report.'); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed to create the plan.'); }
     return res.json();
   },
 
@@ -2061,7 +2061,7 @@ export const api = {
       headers: getAuthHeaders(),
       body: JSON.stringify(data),
     });
-    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed to update report.'); }
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Failed to update the plan.'); }
     return res.json();
   },
 
@@ -2097,7 +2097,7 @@ export const api = {
     const res = await fetchWithAutoRefresh(`${API_BASE}/sales-champs/employee/${employeeId}?${qs}`, {
       headers: getAuthHeaders(),
     });
-    if (!res.ok) throw new Error('Failed to load Sales Champs report.');
+    if (!res.ok) throw new Error('Failed to load the sales achievement plan.');
     return res.json();
   },
 };

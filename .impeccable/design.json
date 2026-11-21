@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-10-22T00:00:00Z",
-  "title": "Design System: MintReview",
+  "title": "Design System: Arisotech HRMS",
   "extensions": {
     "colorMeta": {
       "ledger-indigo": { "role": "primary", "displayName": "Ledger Indigo", "canonical": "#3a3a8c", "tonalRamp": ["#15153a", "#222253", "#292964", "#313178", "#3a3a8c", "#7f85d2", "#c3c8ec", "#eef0fa"] },
@@ -87,7 +87,7 @@
       "name": "Sidebar Nav Item",
       "kind": "nav",
       "refersTo": "nav-item",
-      "description": "Sidebar entries; the active item takes the mint wash.",
+      "description": "Sidebar entries; the active item takes the indigo wash.",
       "html": "<nav class=\"ds-nav\"><div class=\"ds-nav-group\">Work</div><a class=\"ds-nav-item ds-nav-active\" href=\"#\">Dashboard</a><a class=\"ds-nav-item\" href=\"#\">Reviews</a><a class=\"ds-nav-item\" href=\"#\">Appraisals</a></nav>",
       "css": ".ds-nav { width: 224px; padding: 12px 8px; background: #fff; border-right: 1px solid #e2e8f0; font-family: 'IBM Plex Sans', system-ui, sans-serif; } .ds-nav-group { padding: 0 10px 4px; font: 500 12px inherit; color: #64748b; } .ds-nav-item { display: block; padding: 6px 10px; border-radius: 6px; font-size: 13px; color: #475569; text-decoration: none; transition: background-color 150ms, color 150ms; } .ds-nav-item:hover { background: #f1f5f9; color: #0f172a; } .ds-nav-item:focus-visible { outline: none; box-shadow: 0 0 0 2px #5d62bd; } .ds-nav-active, .ds-nav-active:hover { background: #eef0fa; color: #292964; font-weight: 500; }"
     },
@@ -102,7 +102,7 @@
   ],
   "narrative": {
     "northStar": "The Calm Ledger",
-    "overview": "MintReview is a book of record for people's work. Every screen should read like a well-kept ledger: quiet slate paper, exact figures in aligned columns, and colour only where it carries meaning. Scores, increments and PIPs are sensitive, so the interface never raises its voice. It states facts plainly, shows who did what, and lets the person act on the next step.\n\nDensity is moderate to high and built for office desktops: compact 32px controls, 13–14px text, 20px card padding. Hierarchy comes from weight and spacing, not size jumps or colour. A single indigo accent, taken from the logo, marks the one main action and where you are; everything else is slate. Status colours (emerald, amber, rose, sky) appear only as small, tinted badges and dots, never as large fields.\n\nLight and dark themes are equal citizens; every surface, border and badge has a dark counterpart.",
+    "overview": "Arisotech Review is a book of record for people's work. Every screen should read like a well-kept ledger: quiet slate paper, exact figures in aligned columns, and colour only where it carries meaning. Scores, increments and PIPs are sensitive, so the interface never raises its voice. It states facts plainly, shows who did what, and lets the person act on the next step.\n\nDensity is moderate to high and built for office desktops: compact 32px controls, 13–14px text, 20px card padding. Hierarchy comes from weight and spacing, not size jumps or colour. A single indigo accent, taken from the logo, marks the one main action and where you are; everything else is slate. Status colours (emerald, amber, rose, sky) appear only as small, tinted badges and dots, never as large fields.\n\nLight and dark themes are equal citizens; every surface, border and badge has a dark counterpart.",
     "keyCharacteristics": [
       "Slate neutrals with one Ledger Indigo accent.",
       "IBM Plex Sans throughout; numbers always in tabular figures.",

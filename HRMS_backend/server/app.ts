@@ -78,7 +78,7 @@ export function createApp(options: CreateAppOptions = {}): express.Express {
     }
 
     // Vercel preview and production deployments for this application
-    return /^https:\/\/(mint-review-system.*|.*chirag-tank1971s-projects)\.vercel\.app$/i.test(cleanOrigin);
+    return /^https:\/\/(arisotech.*|.*chirag-tank1971s-projects)\.vercel\.app$/i.test(cleanOrigin);
   };
 
   const corsMiddleware = cors({

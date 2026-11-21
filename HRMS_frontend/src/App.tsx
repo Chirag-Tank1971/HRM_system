@@ -32,7 +32,7 @@ import { PageLoadingProgress } from './components/ui/PageLoadingProgress';
 // Route-level code splitting: Lazy load heavy domain views
 /** Screens that read the company-wide lists from useMasterData. */
 const MASTER_DATA_VIEWS = new Set<string>([
-  'appraisals', 'calibration', 'reviews', 'reports', 'pip', 'kras', 'sales_champs', 'employees', 'hierarchy', 'management',
+  'appraisals', 'calibration', 'reviews', 'reports', 'pip', 'kras', 'sales_achievement', 'employees', 'hierarchy', 'management',
 ]);
 
 const DashboardView = lazy(() =>
@@ -399,7 +399,7 @@ function AppContent() {
                       setIsAssignKraModalOpen(true);
                     }}
                   />
-                ) : currentView === 'sales_champs' ? (
+                ) : currentView === 'sales_achievement' ? (
                   <SalesChampsView employees={employees} departments={departments} />
                 ) : currentView === 'leave' ? (
                   <LeaveView currentUser={user} />

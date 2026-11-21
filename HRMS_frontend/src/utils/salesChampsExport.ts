@@ -12,20 +12,24 @@ export interface ChampsSlab {
 }
 
 export interface ChampsReportData {
+  /** Printed on the letterhead; the signed-in user's company. */
+  companyName?: string;
   employeeName: string;
   financialYear: string;        // e.g. "FY 2026-27"
   fyDateRange: string;          // e.g. "01.04.2026 – 31.03.2027"
   publishedDate: string;        // e.g. "1st April 2026"
   gm2TargetCr: string;          // e.g. "0.96 Cr"
   slabs: ChampsSlab[];          // exactly 4 rows
-  mintValue?: string;           // e.g. "Strive for Excellence"
-  incentiveSchemeName?: string; // optional subtitle like "(added Neeraj portion too)"
+  /** Optional company motto printed in the footer (stored as `mintValue` for older records). */
+  mintValue?: string;
+  incentiveSchemeName?: string; // optional subtitle, e.g. "North region"
   rules?: Partial<ChampsRules>;
   customRuleText?: string;
 }
 
 export interface ChampsRules {
   collectionRiders: boolean;
+  /** Focus-product 1.15x multiplier (key name kept so saved plans keep their setting). */
   mintAiMultiplier: boolean;
   q1Qualifier: boolean;
   teamPerformanceLink: boolean;
@@ -117,7 +121,7 @@ export function champsTermsHtml(data: Pick<ChampsReportData, 'rules' | 'customRu
   // Right T&C column
   const rightTCs: string[] = [];
   if (rules.mintAiMultiplier) {
-    rightTCs.push(`<li><strong>MINT-AI&trade; Solutions:</strong> Orders featuring MINT-AI solutions carry a <strong>1.15&times; multiplier</strong> on GM2 for incentive calculation purposes.</li>`);
+    rightTCs.push(`<li><strong>Focus solutions:</strong> Orders featuring the company's focus products or solutions carry a <strong>1.15&times; multiplier</strong> on GM2 for incentive calculation purposes.</li>`);
   }
   if (rules.q1Qualifier) {
     rightTCs.push(`<li><strong>Q1 Target:</strong> A minimum of 25% of annual GM2 target must be achieved by end of Q1 to qualify for Q1 advance.</li>`);
@@ -148,29 +152,31 @@ export function champsTermsHtml(data: Pick<ChampsReportData, 'rules' | 'customRu
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-//  HTML Generator — replicates the MINT Champs PDF template exactly
+//  HTML generator — the printable sales achievement plan (A4 landscape)
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function generateChampsHtml(data: ChampsReportData): string {
-  const mintValue = escapeHtml(data.mintValue || 'Strive for Excellence');
+  const company = escapeHtml(data.companyName || '');
+  const motto = escapeHtml(data.mintValue || '');
   const fy = escapeHtml(data.financialYear || financialYearFor().label);
   const name = escapeHtml(data.employeeName);
-  const schemeName = data.incentiveSchemeName ? ` ( ${escapeHtml(data.incentiveSchemeName)} )` : '';
+  const schemeName = data.incentiveSchemeName ? ` &middot; ${escapeHtml(data.incentiveSchemeName)}` : '';
   // Date range and published date are optional; leave them out rather than show a wrong year
-  const fyMeta = [
-    `${fy}${data.fyDateRange ? ` (${escapeHtml(data.fyDateRange)})` : ''}`,
-    `MINT-Internal Document${data.publishedDate ? ` &ndash; Published ${escapeHtml(data.publishedDate)}` : ''}`,
-  ].join(' &nbsp;|&nbsp; ');
+  const meta = [
+    data.fyDateRange ? `Period ${escapeHtml(data.fyDateRange)}` : '',
+    data.publishedDate ? `Published ${escapeHtml(data.publishedDate)}` : '',
+  ].filter(Boolean).join(' &nbsp;&middot;&nbsp; ');
   const { left: leftTCs, right: rightTCs } = champsTermsHtml(data);
 
   const slabRows = (data.slabs || [])
     .map(
       (s, i) => `
-    <tr class="${i % 2 === 0 ? 'row-even' : 'row-odd'}">
+    <tr>
+      <td class="tier">Tier ${i + 1}</td>
       <td>${Number(s.amcTargetLacs) || 0}</td>
       <td>${(Number(s.amcIncentiveLacs) || 0).toFixed(2)}</td>
       <td>${Number(s.gm2AchievementLacs) || 0}</td>
-      <td>${(Number(s.salesIncentiveLacs) || 0).toFixed(2)}</td>
+      <td class="strong">${(Number(s.salesIncentiveLacs) || 0).toFixed(2)}</td>
     </tr>`
     )
     .join('');
@@ -179,232 +185,83 @@ export function generateChampsHtml(data: ChampsReportData): string {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>${name} &mdash; MINT Champs ${fy}</title>
+  <title>${name} &mdash; Sales achievement plan ${fy}</title>
   <style>
     @page { size: A4 landscape; margin: 0; }
-    * {
-      box-sizing: border-box;
-      -webkit-print-color-adjust: exact !important;
-      print-color-adjust: exact !important;
-    }
-    body {
-      font-family: "Segoe UI", Arial, Helvetica, sans-serif;
-      margin: 0; padding: 0;
-      background: #ffffff;
-      color: #0f172a;
-      font-size: 10.5px;
-      line-height: 1.5;
-    }
-    .page {
-      width: 297mm;
-      min-height: 210mm;
-      display: flex;
-      flex-direction: column;
-      background: #ffffff;
-    }
+    * { box-sizing: border-box; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    body { font-family: "Segoe UI", Arial, Helvetica, sans-serif; margin: 0; padding: 0; background: #ffffff; color: #0f172a; font-size: 10.5px; line-height: 1.5; }
+    .page { width: 297mm; min-height: 210mm; display: flex; flex-direction: column; background: #ffffff; }
 
-    /* HEADER */
-    .header {
-      background: #0d3b5e;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 28px;
-    }
-    .mint-logo-text {
-      font-size: 26px;
-      font-weight: 900;
-      color: #ffffff;
-      letter-spacing: -1px;
-      line-height: 1;
-    }
-    .mint-logo-text span { color: #34d399; }
-    .mint-tagline {
-      font-size: 9px;
-      color: #94a3b8;
-      font-style: italic;
-      margin-top: 2px;
-    }
+    .header { background: #2c2c6e; color: #ffffff; display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 18px 28px 16px; }
+    .company { font-size: 11px; font-weight: 600; letter-spacing: 0.4px; text-transform: uppercase; color: #c7c9f0; }
+    .doc-title { font-size: 22px; font-weight: 700; letter-spacing: -0.4px; line-height: 1.15; margin-top: 2px; }
     .header-right { text-align: right; }
-    .header-title {
-      font-size: 22px;
-      font-weight: 800;
-      color: #ffffff;
-      letter-spacing: -0.5px;
-      line-height: 1.1;
-    }
-    .header-sub {
-      font-size: 9px;
-      color: #94a3b8;
-      margin-top: 3px;
-    }
+    .emp-name { font-size: 16px; font-weight: 700; }
+    .emp-meta { font-size: 9.5px; color: #c7c9f0; margin-top: 2px; }
+    .accent { height: 4px; background: #eb6834; }
 
-    /* EMPLOYEE BANNER */
-    .employee-banner {
-      background: linear-gradient(135deg, #1e3a5f 0%, #1e40af 50%, #1d4ed8 100%);
-      padding: 16px 28px;
-      text-align: center;
-    }
-    .employee-name {
-      font-size: 20px;
-      font-weight: 800;
-      color: #ffffff;
-      letter-spacing: -0.3px;
-    }
-    .employee-name .fy-accent { color: #34d399; }
-    .employee-meta {
-      font-size: 9px;
-      color: #bfdbfe;
-      margin-top: 4px;
-    }
+    .body { flex: 1; padding: 18px 28px 12px; display: flex; flex-direction: column; gap: 14px; }
 
-    /* BODY */
-    .body {
-      flex: 1;
-      padding: 16px 28px 10px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* TARGET CARD */
-    .target-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #f8fafc;
-      border: 1.5px solid #e2e8f0;
-      border-left: 5px solid #0d3b5e;
-      border-radius: 8px;
-      padding: 10px 20px;
-    }
+    .target-card { display: flex; align-items: center; justify-content: space-between; background: #f5f6fb; border: 1px solid #dfe1ef; border-radius: 8px; padding: 12px 20px; }
     .target-label { font-size: 12px; font-weight: 700; color: #0f172a; }
-    .target-value {
-      background: linear-gradient(135deg, #b45309, #d97706);
-      color: #ffffff;
-      font-size: 18px;
-      font-weight: 900;
-      padding: 6px 20px;
-      border-radius: 6px;
-      letter-spacing: -0.5px;
-    }
+    .target-help { font-size: 9.5px; color: #475569; margin-top: 1px; }
+    .target-value { font-size: 22px; font-weight: 800; color: #2c2c6e; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
 
-    /* TABLE */
-    .section-title {
-      font-size: 11px;
-      font-weight: 800;
-      color: #0d3b5e;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-bottom: 4px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      border-radius: 8px;
-      overflow: hidden;
-      font-size: 10.5px;
-    }
-    thead tr { background: #0d3b5e; color: #ffffff; }
-    thead th {
-      padding: 9px 12px;
-      text-align: center;
-      font-weight: 700;
-      font-size: 10px;
-      line-height: 1.3;
-      border-right: 1px solid #1e4f7a;
-    }
-    thead th:last-child { border-right: none; }
-    tbody td {
-      padding: 8px 12px;
-      text-align: center;
-      border-right: 1px solid #e2e8f0;
-      font-weight: 600;
-    }
-    tbody td:last-child { border-right: none; }
-    .row-even { background: #f1f5f9; }
-    .row-odd  { background: #ffffff; }
+    .section-title { font-size: 10.5px; font-weight: 700; color: #2c2c6e; text-transform: uppercase; letter-spacing: 0.6px; margin-bottom: 6px; }
+    table { width: 100%; border-collapse: collapse; font-size: 10.5px; font-variant-numeric: tabular-nums; border: 1px solid #dfe1ef; }
+    thead th { background: #eef0fa; color: #2c2c6e; padding: 8px 12px; text-align: right; font-weight: 700; font-size: 9.5px; line-height: 1.3; border-bottom: 1px solid #dfe1ef; }
+    thead th:first-child, td.tier { text-align: left; }
+    tbody td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #eceef6; font-weight: 500; }
+    tbody tr:last-child td { border-bottom: none; }
+    td.tier { color: #475569; font-weight: 600; }
+    td.strong { font-weight: 700; color: #0f172a; }
 
-    /* T&C */
-    .tc-grid {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 0 24px;
-    }
-    .tc-col ul {
-      margin: 0;
-      padding-left: 16px;
-      list-style-type: disc;
-    }
-    .tc-col ul li {
-      margin-bottom: 4px;
-      color: #334155;
-      font-size: 9.5px;
-      line-height: 1.45;
-    }
-    .tc-col ul li ul {
-      list-style-type: circle;
-      margin-top: 2px;
-    }
+    .tc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 24px; }
+    .tc-col ul { margin: 0; padding-left: 16px; list-style-type: disc; }
+    .tc-col ul li { margin-bottom: 4px; color: #334155; font-size: 9.5px; line-height: 1.45; }
+    .tc-col ul li ul { list-style-type: circle; margin-top: 2px; }
 
-    /* FOOTER */
-    .footer {
-      background: #0d3b5e;
-      padding: 10px 28px;
-      margin-top: auto;
-      text-align: center;
-    }
-    .footer-text { font-size: 9px; color: #94a3b8; }
-    .footer-text strong { color: #34d399; }
+    .footer { border-top: 1px solid #dfe1ef; padding: 10px 28px; margin-top: auto; display: flex; justify-content: space-between; gap: 16px; font-size: 9px; color: #64748b; }
+    .footer strong { color: #2c2c6e; }
 
-    @media print {
-      body { margin: 0; }
-      .page { width: 100%; min-height: 100vh; }
-    }
+    @media print { body { margin: 0; } .page { width: 100%; min-height: 100vh; } }
   </style>
 </head>
 <body>
 <div class="page">
 
-  <!-- HEADER -->
   <div class="header">
     <div>
-      <div class="mint-logo-text">M<span>INT</span></div>
-      <div class="mint-tagline">MINT Value: ${mintValue}</div>
+      ${company ? `<div class="company">${company}</div>` : ''}
+      <div class="doc-title">Sales achievement plan ${fy}</div>
     </div>
     <div class="header-right">
-      <div class="header-title">MINT Champs ${fy}</div>
-      <div class="header-sub">M Intergraph Systems Pvt Ltd &nbsp;|&nbsp; ${fy} &nbsp;|&nbsp; MINT-Internal Document</div>
+      <div class="emp-name">${name}</div>
+      ${meta ? `<div class="emp-meta">${meta}</div>` : ''}
     </div>
   </div>
+  <div class="accent"></div>
 
-  <!-- EMPLOYEE BANNER -->
-  <div class="employee-banner">
-    <div class="employee-name">${name} &mdash; MINT Champs <span class="fy-accent">${fy}</span></div>
-    <div class="employee-meta">
-      M Intergraph Systems Pvt Ltd &nbsp;|&nbsp; ${fyMeta}
-    </div>
-  </div>
-
-  <!-- BODY -->
   <div class="body">
 
-    <!-- GM2 TARGET -->
     <div class="target-card">
-      <div class="target-label">Bottom Line &ndash; Individual Target (GM2 Margin)</div>
+      <div>
+        <div class="target-label">Individual target &mdash; GM2 margin</div>
+        <div class="target-help">Annual GM2 contribution to be achieved for ${fy}</div>
+      </div>
       <div class="target-value">&#8377;${escapeHtml(data.gm2TargetCr)}</div>
     </div>
 
-    <!-- INCENTIVE SLAB TABLE -->
     <div>
-      <div class="section-title">Incentive Scheme${schemeName}</div>
+      <div class="section-title">Incentive tiers${schemeName}</div>
       <table>
         <thead>
           <tr>
-            <th>Total AMC Target<br>in Lacs</th>
-            <th>Incentive for AMC<br>(in Lacs)</th>
-            <th>GM2 Contribution Achievement<br>(in Lacs)</th>
-            <th>Total Incentive in Lacs<br>(for Sales)</th>
+            <th>Tier</th>
+            <th>Total AMC target<br>(Lacs)</th>
+            <th>Incentive for AMC<br>(Lacs)</th>
+            <th>GM2 contribution achieved<br>(Lacs)</th>
+            <th>Total sales incentive<br>(Lacs)</th>
           </tr>
         </thead>
         <tbody>
@@ -413,9 +270,8 @@ export function generateChampsHtml(data: ChampsReportData): string {
       </table>
     </div>
 
-    <!-- TERMS & CONDITIONS -->
     <div>
-      <div class="section-title">Terms &amp; Conditions</div>
+      <div class="section-title">Terms &amp; conditions</div>
       <div class="tc-grid">
         <div class="tc-col"><ul>${leftTCs.join('')}</ul></div>
         <div class="tc-col"><ul>${rightTCs.join('')}</ul></div>
@@ -424,11 +280,9 @@ export function generateChampsHtml(data: ChampsReportData): string {
 
   </div>
 
-  <!-- FOOTER -->
   <div class="footer">
-    <div class="footer-text">
-      <strong>MINT Value: ${mintValue}</strong> &nbsp;|&nbsp; solutions@mintergraph.com &nbsp;|&nbsp; www.mintergraph.com
-    </div>
+    <span>${company ? `<strong>${company}</strong> &nbsp;&middot;&nbsp; ` : ''}Internal and confidential</span>
+    ${motto ? `<span>${motto}</span>` : '<span></span>'}
   </div>
 
 </div>
@@ -480,7 +334,7 @@ export async function downloadChampsPdf(data: ChampsReportData): Promise<void> {
 
     const safeName = data.employeeName.replace(/[^a-zA-Z0-9 _-]/g, '').replace(/\s+/g, '_');
     const fySlug = (data.financialYear || financialYearFor().label).replace(/[^a-zA-Z0-9-]/g, '');
-    pdf.save(`MINT_Champs_${fySlug}_${safeName}.pdf`);
+    pdf.save(`Sales_Achievement_${fySlug}_${safeName}.pdf`);
   } finally {
     document.body.removeChild(container);
   }

@@ -186,7 +186,7 @@ export const BulkImportExportManager: React.FC<BulkImportExportManagerProps> = (
   };
 
   // Handles one or many files in a single batch. Real-world KRA scorecards commonly arrive
-  // as one workbook per employee (e.g. "Harsh Tyagi.xlsx"), so HR needs to select/drop up to
+  // as one workbook per employee (e.g. "Arjun Mehta.xlsx"), so HR needs to select/drop up to
   // MAX_FILES of them at once and have every employee's rows merged into one validation pass —
   // not upload them one at a time.
   const handleFilesUpload = (files: File[]) => {

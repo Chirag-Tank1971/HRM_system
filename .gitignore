@@ -136,7 +136,6 @@ storage/
 # Real employee data (never commit)
 # =========================
 excel data/
-MINT_KRA_Only/
 *.xlsx
 *.xls
 *.csv

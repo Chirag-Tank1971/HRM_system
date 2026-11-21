@@ -56,7 +56,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
         item.group === title &&
         item.inSidebar !== false &&
         isNavItemVisible(item, role) &&
-        (item.id !== 'sales_champs' || showSalesChamps)
+        (item.id !== 'sales_achievement' || showSalesChamps)
     ),
   })).filter((group) => group.items.length > 0);
 

@@ -63,7 +63,7 @@ salesChampsRouter.get(
       res.json(docs);
     } catch (err: any) {
       console.error('sales-champs list error:', err);
-      res.status(500).json({ error: 'Failed to fetch Sales Champs reports.' });
+      res.status(500).json({ error: 'Failed to fetch sales achievement plans.' });
     }
   }
 );
@@ -98,7 +98,7 @@ salesChampsRouter.get(
       res.json(docs);
     } catch (err: any) {
       console.error('sales-champs employee fetch error:', err);
-      res.status(500).json({ error: 'Failed to fetch report.' });
+      res.status(500).json({ error: 'Failed to fetch the plan.' });
     }
   }
 );
@@ -112,7 +112,7 @@ salesChampsRouter.get(
     try {
       const col = getDbCollection('salesChampsReports');
       const doc = await col.findOne({ id: req.params.id });
-      if (!doc) return res.status(404).json({ error: 'Report not found.' });
+      if (!doc) return res.status(404).json({ error: 'Plan not found.' });
 
       const role = req.user?.role;
       const myEmpId = req.user?.employeeId;
@@ -123,7 +123,7 @@ salesChampsRouter.get(
       }
       res.json(doc);
     } catch (err: any) {
-      res.status(500).json({ error: 'Failed to fetch report.' });
+      res.status(500).json({ error: 'Failed to fetch the plan.' });
     }
   }
 );
@@ -155,7 +155,7 @@ salesChampsRouter.post(
 
       const dup = await findDuplicate(col, employeeId, financialYear);
       if (dup) {
-        return res.status(409).json({ error: `${emp.name} already has a Sales Champs report for ${financialYear}. Edit that one instead.` });
+        return res.status(409).json({ error: `${emp.name} already has a sales achievement plan for ${financialYear}. Edit that one instead.` });
       }
 
       const now = new Date().toISOString();
@@ -185,7 +185,7 @@ salesChampsRouter.post(
       res.status(201).json(doc);
     } catch (err: any) {
       console.error('sales-champs create error:', err);
-      res.status(500).json({ error: 'Failed to create report.' });
+      res.status(500).json({ error: 'Failed to create the plan.' });
     }
   }
 );
@@ -200,9 +200,9 @@ salesChampsRouter.put(
     try {
       const col = getDbCollection('salesChampsReports');
       const existing = await col.findOne({ id: req.params.id });
-      if (!existing) return res.status(404).json({ error: 'Report not found.' });
+      if (!existing) return res.status(404).json({ error: 'Plan not found.' });
       if (existing.status === 'LOCKED') {
-        return res.status(403).json({ error: 'Locked reports cannot be edited.' });
+        return res.status(403).json({ error: 'Locked plans cannot be edited.' });
       }
 
       const {
@@ -228,7 +228,7 @@ salesChampsRouter.put(
         existing.id
       );
       if (dup) {
-        return res.status(409).json({ error: `This employee already has a Sales Champs report for ${updates.financialYear || existing.financialYear}.` });
+        return res.status(409).json({ error: `This employee already has a sales achievement plan for ${updates.financialYear || existing.financialYear}.` });
       }
       if (fyDateRange !== undefined) updates.fyDateRange = fyDateRange;
       if (publishedDate !== undefined) updates.publishedDate = publishedDate;
@@ -258,7 +258,7 @@ salesChampsRouter.put(
       res.json(updated);
     } catch (err: any) {
       console.error('sales-champs update error:', err);
-      res.status(500).json({ error: 'Failed to update report.' });
+      res.status(500).json({ error: 'Failed to update the plan.' });
     }
   }
 );
@@ -273,9 +273,9 @@ salesChampsRouter.post(
     try {
       const col = getDbCollection('salesChampsReports');
       const existing = await col.findOne({ id: req.params.id });
-      if (!existing) return res.status(404).json({ error: 'Report not found.' });
+      if (!existing) return res.status(404).json({ error: 'Plan not found.' });
       if (existing.status !== 'DRAFT') {
-        return res.status(400).json({ error: `Only draft reports can be finalized (this one is ${existing.status}).` });
+        return res.status(400).json({ error: `Only draft plans can be finalized (this one is ${existing.status}).` });
       }
       const now = new Date().toISOString();
       await col.updateOne(
@@ -286,7 +286,7 @@ salesChampsRouter.post(
       await logChampsAudit(req, 'SALES_CHAMPS_FINALIZE', req.params.id, existing, updated);
       res.json(updated);
     } catch (err: any) {
-      res.status(500).json({ error: 'Failed to finalize report.' });
+      res.status(500).json({ error: 'Failed to finalize the plan.' });
     }
   }
 );
@@ -301,10 +301,10 @@ salesChampsRouter.post(
     try {
       const col = getDbCollection('salesChampsReports');
       const existing = await col.findOne({ id: req.params.id });
-      if (!existing) return res.status(404).json({ error: 'Report not found.' });
+      if (!existing) return res.status(404).json({ error: 'Plan not found.' });
       if (existing.status === 'LOCKED') return res.status(400).json({ error: 'Already locked.' });
       if (existing.status !== 'FINAL') {
-        return res.status(400).json({ error: 'Mark the report as Final before locking it.' });
+        return res.status(400).json({ error: 'Mark the plan as Final before locking it.' });
       }
 
       const now = new Date().toISOString();
@@ -321,8 +321,8 @@ salesChampsRouter.post(
         userId: existing.employeeId,
         userRole: 'EMPLOYEE',
         type: 'GENERAL',
-        title: `Your Sales Champs scheme for ${existing.financialYear} is ready`,
-        message: `Your MINT Champs incentive scheme for ${existing.financialYear} has been approved and locked. Open Sales Champs to view or download it.`,
+        title: `Your sales achievement plan for ${existing.financialYear} is ready`,
+        message: `Your sales target and incentive plan for ${existing.financialYear} has been approved and locked. Open Sales achievement to view or download it.`,
         isRead: false,
         priority: 'MEDIUM',
         metadata: { salesChampsReportId: existing.id, financialYear: existing.financialYear },
@@ -330,7 +330,7 @@ salesChampsRouter.post(
       });
       res.json(updated);
     } catch (err: any) {
-      res.status(500).json({ error: 'Failed to lock report.' });
+      res.status(500).json({ error: 'Failed to lock the plan.' });
     }
   }
 );
@@ -345,15 +345,15 @@ salesChampsRouter.delete(
     try {
       const col = getDbCollection('salesChampsReports');
       const existing = await col.findOne({ id: req.params.id });
-      if (!existing) return res.status(404).json({ error: 'Report not found.' });
+      if (!existing) return res.status(404).json({ error: 'Plan not found.' });
       if (existing.status === 'LOCKED') {
-        return res.status(403).json({ error: 'Locked reports cannot be deleted.' });
+        return res.status(403).json({ error: 'Locked plans cannot be deleted.' });
       }
       await col.deleteOne({ id: req.params.id });
       await logChampsAudit(req, 'SALES_CHAMPS_DELETE', req.params.id, existing, null);
       res.json({ success: true });
     } catch (err: any) {
-      res.status(500).json({ error: 'Failed to delete report.' });
+      res.status(500).json({ error: 'Failed to delete the plan.' });
     }
   }
 );

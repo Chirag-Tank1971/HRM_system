@@ -16,7 +16,7 @@ export type AppView =
   | 'audit'
   | 'notifications'
   | 'pip'
-  | 'sales_champs'
+  | 'sales_achievement'
   | 'leave'
   | 'calendar'
   | 'approvals';
@@ -47,10 +47,13 @@ export function isViewPermitted(view: AppView, role?: string): boolean {
   return allowed ? allowed.includes(view) : true;
 }
 
+/** Old page names that now live under a new name (bookmarks and links keep working). */
+const RENAMED_VIEWS: Record<string, string> = { sales_champs: 'sales_achievement' };
+
 function getInitialView(): AppView {
   const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
   const hash = window.location.hash.replace(/^#\/?/, '').trim();
-  const raw = path || hash;
+  const raw = RENAMED_VIEWS[path || hash] || path || hash;
 
   if (raw === 'portal') return 'dashboard';
   if (VALID_VIEWS.includes(raw as AppView)) {
@@ -65,6 +68,12 @@ export function useUrlHashView() {
   // next (possibly lazy-loaded) view is ready, and reports that wait back as `isPending` — the
   // signal a top loading bar can key off without any timers or polling of its own.
   const [isPending, startTransition] = useTransition();
+
+  // An old page name in the address bar is swapped for its new one
+  useEffect(() => {
+    const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
+    if (RENAMED_VIEWS[path]) window.history.replaceState(null, '', `/${RENAMED_VIEWS[path]}${window.location.search}`);
+  }, []);
 
   // Sync pathname when view changes
   const setView = useCallback((view: AppView, replaceHistory = false) => {
@@ -86,7 +95,7 @@ export function useUrlHashView() {
     const handleUrlChange = () => {
       const path = window.location.pathname.replace(/^\/+|\/+$/g, '').split('/')[0];
       const hash = window.location.hash.replace(/^#\/?/, '').trim();
-      const raw = path || hash;
+      const raw = RENAMED_VIEWS[path || hash] || path || hash;
 
       startTransition(() => {
         if (raw === 'portal') {

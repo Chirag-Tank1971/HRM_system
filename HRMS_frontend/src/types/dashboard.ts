@@ -38,7 +38,7 @@ export interface DashboardTaskLink {
     | 'leave'
     | 'calendar'
     | 'approvals'
-    | 'sales_champs';
+    | 'sales_achievement';
   params?: Record<string, string | number | boolean>;
 }
 

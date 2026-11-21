@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Trophy, Plus, Search, RefreshCw, Lock, CheckCircle2,
-  Download, Printer, Pencil, Loader2, Trash2, AlertTriangle,
+  Target, Plus, Search, RefreshCw, Lock, CheckCircle2,
+  Download, Printer, Pencil, Loader2, Trash2, AlertTriangle, FilePen,
 } from 'lucide-react';
 import { Employee, Department } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -11,6 +11,7 @@ import { PageHeader } from './ui/PageHeader';
 import { Button } from './ui/Button';
 import { StatusBadge } from './ui/StatusBadge';
 import { SegmentedControl } from './ui/SegmentedControl';
+import { useCompanyName } from '../hooks/useCompanyName';
 import { SELECT_CLASS } from './ui/formStyles';
 import { SalesChampsReportModal, SalesChampsReport } from './SalesChampsReportModal';
 import { downloadChampsPdf, printChampsReport, champsTermsHtml, ChampsReportData } from '../utils/salesChampsExport';
@@ -29,8 +30,9 @@ const STATUS_TONE = {
   LOCKED: { label: 'Locked', tone: 'success' },
 } as const;
 
-function toChampsData(r: SalesChampsReport): ChampsReportData {
+function toChampsData(r: SalesChampsReport, companyName: string): ChampsReportData {
   return {
+    companyName,
     employeeName: r.employeeName,
     financialYear: r.financialYear,
     fyDateRange: r.fyDateRange,
@@ -51,6 +53,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
   const isAdmin = user?.role === 'SUPER_ADMIN';
   const isHR = user?.role === 'HR';
   const isManagementOrAdmin = isAdmin || isHR;
+  const companyName = useCompanyName();
 
   const [reports, setReports] = useState<SalesChampsReport[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -82,7 +85,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
       }
       setSelectedIdx(0);
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to load Sales Champs reports.');
+      toast.error(err?.message || 'Failed to load sales achievement plans.');
     } finally {
       setIsLoading(false);
     }
@@ -107,14 +110,14 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
       if (editingReport?.id) {
         const wasFinal = editingReport.status === 'FINAL';
         await api.updateSalesChampsReport(editingReport.id, data);
-        toast.success(wasFinal ? 'Report updated and moved back to Draft for review.' : 'Report updated.');
+        toast.success(wasFinal ? 'Plan updated and moved back to Draft for review.' : 'Plan updated.');
       } else {
         await api.createSalesChampsReport(data);
-        toast.success('Report created.');
+        toast.success('Plan created as a draft.');
       }
       await load();
     } catch (err: any) {
-      toast.error(err?.message || 'Failed to save report.');
+      toast.error(err?.message || 'Failed to save the plan.');
       throw err;
     }
   };
@@ -126,14 +129,14 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
       toast.success(success);
       await load();
     } catch (err: any) {
-      toast.error(err?.message || `Failed to ${kind} report.`);
+      toast.error(err?.message || `Failed to ${kind} the plan.`);
     } finally {
       setActionLoading((p) => { const n = { ...p }; delete n[id]; return n; });
     }
   };
 
   const handleFinalize = (id: string) =>
-    runAction(id, 'finalize', () => api.finalizeSalesChampsReport(id), 'Report marked as Final.');
+    runAction(id, 'finalize', () => api.finalizeSalesChampsReport(id), 'Plan marked as Final. A Super Admin can now lock it.');
 
   const handleConfirmed = async () => {
     if (!pendingConfirm?.report.id) return;
@@ -141,16 +144,16 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
     const id = report.id!;
     setPendingConfirm(null);
     if (kind === 'lock') {
-      await runAction(id, 'lock', () => api.lockSalesChampsReport(id), `Report locked. ${report.employeeName} has been notified.`);
+      await runAction(id, 'lock', () => api.lockSalesChampsReport(id), `Plan locked. ${report.employeeName} has been notified.`);
     } else {
-      await runAction(id, 'delete', () => api.deleteSalesChampsReport(id), 'Report deleted.');
+      await runAction(id, 'delete', () => api.deleteSalesChampsReport(id), 'Plan deleted.');
     }
   };
 
   const handleDownloadPdf = async (r: SalesChampsReport) => {
     setPdfLoading(r.id!);
     try {
-      await downloadChampsPdf(toChampsData(r));
+      await downloadChampsPdf(toChampsData(r, companyName));
     } finally {
       setPdfLoading(null);
     }
@@ -164,13 +167,13 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
     return (
       <div className="space-y-6">
         <PageHeader
-          title="My Sales Champs Scheme"
-          description="Your officially approved and locked sales incentive scheme document."
+          title="My sales achievement plan"
+          description="Your approved annual target, incentive tiers and terms."
           actions={
             activeReport ? (
               <>
-                <Button icon={Printer} onClick={() => printChampsReport(toChampsData(activeReport))}>
-                  Print preview
+                <Button icon={Printer} onClick={() => printChampsReport(toChampsData(activeReport, companyName))}>
+                  Print
                 </Button>
                 <Button
                   variant="primary"
@@ -188,14 +191,14 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
 
         {isLoading ? (
           <div className="flex items-center justify-center py-24 text-slate-500 dark:text-slate-400 text-sm">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading your scheme document…
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading your plan…
           </div>
         ) : !activeReport ? (
           <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 p-12 text-center max-w-lg mx-auto">
-            <Trophy className="w-8 h-8 mx-auto mb-3 text-slate-400" aria-hidden="true" />
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No incentive scheme yet</h3>
+            <Target className="w-8 h-8 mx-auto mb-3 text-slate-400" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-slate-900 dark:text-white">No plan shared with you yet</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 mt-1.5 leading-relaxed">
-              Your MINT Champs incentive document will appear here once it has been reviewed and locked by administration.
+              Your sales target and incentive plan will appear here once HR has prepared it and it has been approved and locked.
             </p>
           </div>
         ) : (
@@ -209,69 +212,56 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
               />
             )}
 
-            {/* Scheme document: keeps the printed letterhead's look so it matches the PDF */}
+            {/* Same layout as the printed plan */}
             <div className="rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
-              <div className="bg-[#0d3b5e] text-white px-6 py-4 flex flex-wrap items-center justify-between gap-3">
+              <div className="bg-indigo-950 text-white px-6 py-5 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <div className="text-2xl font-bold tracking-tight">M<span className="text-emerald-400">INT</span></div>
-                  <div className="text-[11px] text-slate-300 italic">MINT Value: {activeReport.mintValue || 'Strive for Excellence'}</div>
+                  {companyName && <div className="text-[11px] font-medium uppercase tracking-wide text-indigo-200">{companyName}</div>}
+                  <div className="text-xl font-semibold tracking-tight mt-0.5">Sales achievement plan {activeReport.financialYear}</div>
                 </div>
                 <div className="text-right">
-                  <div className="text-lg font-semibold">MINT Champs {activeReport.financialYear}</div>
-                  <div className="text-[11px] text-slate-300">M Intergraph Systems Pvt Ltd · MINT-Internal Document</div>
+                  <div className="text-base font-semibold">{activeReport.employeeName}</div>
+                  <div className="text-xs text-indigo-200 mt-0.5 flex items-center justify-end gap-2 flex-wrap">
+                    {activeReport.fyDateRange && <span>Period {activeReport.fyDateRange}</span>}
+                    {activeReport.publishedDate && <span>Published {activeReport.publishedDate}</span>}
+                    <span className="inline-flex items-center gap-1 bg-white/10 border border-white/20 text-[11px] font-medium px-2 py-0.5 rounded-md">
+                      <Lock className="w-3 h-3" aria-hidden="true" /> Approved
+                    </span>
+                  </div>
                 </div>
               </div>
-
-              <div className="bg-[#1e3a5f] text-white px-6 py-4 text-center">
-                <div className="text-xl font-semibold tracking-tight">
-                  {activeReport.employeeName} — MINT Champs <span className="text-emerald-400">{activeReport.financialYear}</span>
-                </div>
-                <div className="text-xs text-slate-300 mt-1 flex items-center justify-center gap-2 flex-wrap">
-                  <span>{activeReport.financialYear}{activeReport.fyDateRange ? ` (${activeReport.fyDateRange})` : ''}</span>
-                  {activeReport.publishedDate && (
-                    <>
-                      <span aria-hidden="true">·</span>
-                      <span>Published {activeReport.publishedDate}</span>
-                    </>
-                  )}
-                  <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-200 border border-emerald-400/40 text-[11px] font-medium px-2 py-0.5 rounded-md ml-1">
-                    <Lock className="w-3 h-3" aria-hidden="true" /> Locked &amp; official
-                  </span>
-                </div>
-              </div>
+              <div className="h-1 bg-[#eb6834]" aria-hidden="true" />
 
               <div className="p-6 space-y-6">
                 <div className="flex flex-wrap items-center justify-between gap-4 bg-slate-50 dark:bg-slate-850 p-4 rounded-lg border border-slate-200 dark:border-slate-800">
                   <div>
-                    <span className="text-sm font-semibold text-slate-900 dark:text-white">
-                      Bottom line: individual target (GM2 margin)
-                    </span>
+                    <span className="text-sm font-semibold text-slate-900 dark:text-white">Individual target (GM2 margin)</span>
                     <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                      Your annual GM2 achievement requirement
+                      Annual GM2 contribution to be achieved for {activeReport.financialYear}
                     </p>
                   </div>
-                  <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
-                    ₹{activeReport.gm2TargetCr}
-                  </div>
+                  <div className="text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">₹{activeReport.gm2TargetCr}</div>
                 </div>
 
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-white mb-2">
-                    Incentive scheme {activeReport.incentiveSchemeName ? `(${activeReport.incentiveSchemeName})` : ''}
+                    Incentive tiers{activeReport.incentiveSchemeName ? ` · ${activeReport.incentiveSchemeName}` : ''}
                   </h4>
                   <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800">
                     <table className="w-full text-xs tabular-nums">
                       <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                         <tr>
+                          <th className="py-2.5 px-3 text-left font-medium">Tier</th>
                           <th className="py-2.5 px-3 text-right font-medium">Total AMC target (Lacs)</th>
                           <th className="py-2.5 px-3 text-right font-medium">Incentive for AMC (Lacs)</th>
-                          <th className="py-2.5 px-3 text-right font-medium">GM2 contribution achievement (Lacs)</th>
-                          <th className="py-2.5 px-3 text-right font-medium">Total incentive for sales (Lacs)</th>
+                          <th className="py-2.5 px-3 text-right font-medium">GM2 contribution achieved (Lacs)</th>
+                          <th className="py-2.5 px-3 text-right font-medium">Total sales incentive (Lacs)</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
                         {activeReport.slabs?.map((s, idx) => (
                           <tr key={idx}>
+                            <td className="py-2.5 px-3 text-slate-500 dark:text-slate-400">Tier {idx + 1}</td>
                             <td className="py-2.5 px-3 text-right">{s.amcTargetLacs}</td>
                             <td className="py-2.5 px-3 text-right">{(Number(s.amcIncentiveLacs) || 0).toFixed(2)}</td>
                             <td className="py-2.5 px-3 text-right">{s.gm2AchievementLacs}</td>
@@ -293,9 +283,9 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                 </div>
               </div>
 
-              <div className="bg-[#0d3b5e] text-white px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-                <span><strong>MINT Value:</strong> {activeReport.mintValue || 'Strive for Excellence'}</span>
-                <span>solutions@mintergraph.com · www.mintergraph.com</span>
+              <div className="border-t border-slate-200 dark:border-slate-800 px-6 py-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                <span>{companyName ? `${companyName} · ` : ''}Internal and confidential</span>
+                {activeReport.mintValue && <span>{activeReport.mintValue}</span>}
               </div>
             </div>
           </div>
@@ -306,17 +296,56 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
 
   const countFor = (s: FilterStatus) => (s === 'ALL' ? yearReports.length : yearReports.filter((r) => (r.status || 'DRAFT') === s).length);
 
+  const openNew = () => { setEditingReport(null); setIsModalOpen(true); };
+
+  const STATUS_TILES: { key: FilterStatus; label: string; help: string; icon: typeof Target }[] = [
+    { key: 'ALL', label: 'All plans', help: fyFilter || 'Every year', icon: Target },
+    { key: 'DRAFT', label: 'Draft', help: 'Being prepared by HR', icon: FilePen },
+    { key: 'FINAL', label: 'Final', help: isAdmin ? 'Waiting for you to lock' : 'Waiting for Super Admin', icon: CheckCircle2 },
+    { key: 'LOCKED', label: 'Locked', help: 'Shared with the employee', icon: Lock },
+  ];
+
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Sales Champs"
-        description="Incentive scheme documents for the sales team. Draft → Final (HR) → Locked (Super Admin), then the employee can see it."
+        title="Sales achievement"
+        description="Annual sales targets and incentive plans. HR drafts and finalises a plan, a Super Admin locks it, and the salesperson can then view and download it."
         actions={
-          <Button variant="primary" size="md" icon={Plus} onClick={() => { setEditingReport(null); setIsModalOpen(true); }}>
-            New report
+          <Button variant="primary" size="md" icon={Plus} onClick={openNew}>
+            New plan
           </Button>
         }
       />
+
+      {/* Status summary: each tile filters the table */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {STATUS_TILES.map(({ key, label, help, icon: Icon }) => {
+          const active = statusFilter === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setStatusFilter(key)}
+              className={cn(
+                'text-left rounded-xl border p-4 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500',
+                active
+                  ? 'border-indigo-600 bg-indigo-50/60 dark:bg-indigo-950/30 dark:border-indigo-500'
+                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700'
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">{label}</span>
+                <Icon className={cn('w-4 h-4', active ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-400')} aria-hidden="true" />
+              </div>
+              <div className="mt-1 text-2xl font-semibold tabular-nums text-slate-900 dark:text-white">
+                {isLoading ? '–' : countFor(key)}
+              </div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{help}</div>
+            </button>
+          );
+        })}
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
@@ -327,7 +356,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name or year…"
-            aria-label="Search reports"
+            aria-label="Search plans"
             className="w-full h-8 pl-8 pr-3 text-xs border border-slate-300 dark:border-slate-700 rounded-md bg-white dark:bg-slate-900 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/25 focus:border-indigo-600"
           />
         </div>
@@ -339,16 +368,6 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
           </select>
         )}
 
-        <SegmentedControl
-          ariaLabel="Status"
-          options={(['ALL', 'DRAFT', 'FINAL', 'LOCKED'] as FilterStatus[]).map((s) => ({
-            value: s,
-            label: `${s === 'ALL' ? 'All' : STATUS_TONE[s].label} (${countFor(s)})`,
-          }))}
-          value={statusFilter}
-          onChange={setStatusFilter}
-        />
-
         <Button variant="ghost" icon={RefreshCw} iconSpin={isLoading} onClick={load} aria-label="Refresh" />
       </div>
 
@@ -356,24 +375,43 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
       <div className="bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-20 text-slate-500 dark:text-slate-400 text-sm">
-            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading reports…
+            <Loader2 className="w-5 h-5 animate-spin mr-2" /> Loading plans…
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center py-20 text-slate-500 dark:text-slate-400 gap-3">
-            <Trophy className="w-8 h-8 text-slate-400" aria-hidden="true" />
-            <p className="text-sm">No reports found</p>
-            {reports.length === 0 && (
-              <Button variant="primary" icon={Plus} onClick={() => { setEditingReport(null); setIsModalOpen(true); }}>
-                Create first report
-              </Button>
-            )}
-          </div>
+          reports.length === 0 ? (
+            <div className="px-6 py-14 max-w-2xl mx-auto text-center">
+              <Target className="w-8 h-8 mx-auto text-slate-400" aria-hidden="true" />
+              <h3 className="mt-3 text-sm font-semibold text-slate-900 dark:text-white">No sales achievement plans yet</h3>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">Give each salesperson a yearly target and the incentive they earn at each level.</p>
+              <ol className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 text-left">
+                {[
+                  ['1. Draft', 'HR picks the salesperson, sets the GM2 target, incentive tiers and terms.'],
+                  ['2. Final', 'HR marks the plan Final once it has been checked.'],
+                  ['3. Locked', 'A Super Admin locks it; the salesperson is notified and can download it.'],
+                ].map(([t, d]) => (
+                  <li key={t} className="rounded-lg border border-slate-200 dark:border-slate-800 p-3">
+                    <div className="text-xs font-semibold text-slate-900 dark:text-white">{t}</div>
+                    <div className="mt-0.5 text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{d}</div>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-6">
+                <Button variant="primary" icon={Plus} onClick={openNew}>Create the first plan</Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500 dark:text-slate-400 gap-2">
+              <Search className="w-6 h-6 text-slate-400" aria-hidden="true" />
+              <p className="text-sm">No plans match these filters</p>
+              <Button variant="ghost" onClick={() => { setSearch(''); setStatusFilter('ALL'); setFyFilter(''); }}>Clear filters</Button>
+            </div>
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-xs">
               <thead className="bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400">
                 <tr>
-                  <th className="py-3 px-4 text-left font-medium">Employee</th>
+                  <th className="py-3 px-4 text-left font-medium">Salesperson</th>
                   <th className="py-3 px-4 text-left font-medium">Financial year</th>
                   <th className="py-3 px-4 text-right font-medium">GM2 target</th>
                   <th className="py-3 px-4 text-left font-medium">Status</th>
@@ -407,7 +445,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                               variant="ghost"
                               icon={Pencil}
                               aria-label={`Edit ${r.employeeName}`}
-                              title={r.status === 'FINAL' ? 'Edit (moves the report back to Draft)' : 'Edit'}
+                              title={r.status === 'FINAL' ? 'Edit (moves the plan back to Draft)' : 'Edit'}
                               onClick={() => { setEditingReport(r); setIsModalOpen(true); }}
                             />
                           )}
@@ -438,9 +476,9 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                           <Button
                             variant="ghost"
                             icon={Printer}
-                            aria-label="Print preview"
-                            title="Print preview"
-                            onClick={() => printChampsReport(toChampsData(r))}
+                            aria-label={`Print ${r.employeeName}'s plan`}
+                            title="Print"
+                            onClick={() => printChampsReport(toChampsData(r, companyName))}
                           />
                           <Button
                             variant="ghost"
@@ -457,7 +495,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                               icon={isActing === 'delete' ? Loader2 : Trash2}
                               iconSpin={isActing === 'delete'}
                               disabled={!!isActing}
-                              aria-label={`Delete ${r.employeeName}'s report`}
+                              aria-label={`Delete ${r.employeeName}'s plan`}
                               title="Delete"
                               className="hover:text-rose-700 dark:hover:text-rose-400"
                               onClick={() => setPendingConfirm({ kind: 'delete', report: r })}
@@ -503,13 +541,13 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
               <div>
                 <h3 id="champs-confirm-title" className="text-sm font-semibold text-slate-900 dark:text-white">
                   {pendingConfirm.kind === 'lock'
-                    ? `Lock ${pendingConfirm.report.employeeName}'s ${pendingConfirm.report.financialYear} scheme?`
-                    : `Delete ${pendingConfirm.report.employeeName}'s ${pendingConfirm.report.financialYear} report?`}
+                    ? `Lock ${pendingConfirm.report.employeeName}'s ${pendingConfirm.report.financialYear} plan?`
+                    : `Delete ${pendingConfirm.report.employeeName}'s ${pendingConfirm.report.financialYear} plan?`}
                 </h3>
                 <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
                   {pendingConfirm.kind === 'lock'
-                    ? 'The employee will be notified and can view and download it. A locked report can never be edited or deleted.'
-                    : 'This removes the report permanently. It cannot be undone.'}
+                    ? 'The salesperson will be notified and can view and download it. A locked plan can never be edited or deleted.'
+                    : 'This removes the plan permanently. It cannot be undone.'}
                 </p>
               </div>
             </div>
@@ -521,7 +559,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                 className={pendingConfirm.kind === 'delete' ? 'bg-rose-600 hover:bg-rose-700' : undefined}
                 onClick={handleConfirmed}
               >
-                {pendingConfirm.kind === 'lock' ? 'Lock report' : 'Delete report'}
+                {pendingConfirm.kind === 'lock' ? 'Lock plan' : 'Delete plan'}
               </Button>
             </div>
           </div>

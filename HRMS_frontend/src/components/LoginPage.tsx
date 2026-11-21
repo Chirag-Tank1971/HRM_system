@@ -253,7 +253,7 @@ export const LoginPage: React.FC = () => {
                     autoComplete="username"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@company.com or MS0001"
+                    placeholder="name@company.com or EMP001"
                     disabled={isActionLocked}
                     className={FIELD_INPUT}
                   />

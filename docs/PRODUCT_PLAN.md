@@ -75,7 +75,7 @@ _Version 2.0 · 13 Nov 2026 · Status: draft for review_
 |---|---|
 | Auth | JWT access + refresh tokens, roles (SUPER_ADMIN, HR, MANAGER, HOD, MANAGEMENT, EMPLOYEE), forced password change, demo persona switcher |
 | Org masters | Employees, departments, designations, locations, review cycles, reporting manager and HOD hierarchy |
-| Performance | KRA library and templates, per-employee scorecards, quarterly reviews (self → manager → HOD → HR) with reasons, review returns, PIPs with milestones, annual appraisals, bell curve, department budgets, 9-box talent matrix, appraisal and review letters, Sales Champs incentives |
+| Performance | KRA library and templates, per-employee scorecards, quarterly reviews (self → manager → HOD → HR) with reasons, review returns, PIPs with milestones, annual appraisals, bell curve, department budgets, 9-box talent matrix, appraisal and review letters, sales achievement & incentive plans |
 | Data | Bulk import/export for employees and KRAs (Excel/CSV), reports, dashboards per role |
 | Platform | Audit log, email log, in-app notifications, AI narratives |
 
@@ -576,7 +576,7 @@ Data: `expense_categories`, `expense_policies`, `expense_claims{employeeId, item
 
 ## B.13 Performance management (existing, enhance)
 
-Keep the current KRA, review, PIP, appraisal, bell curve, 9-box and Sales Champs features. Required changes:
+Keep the current KRA, review, PIP, appraisal, bell curve, 9-box and Sales achievement (formerly Sales Champs) features. Required changes:
 
 | ID | Requirement | Priority |
 |---|---|---|
