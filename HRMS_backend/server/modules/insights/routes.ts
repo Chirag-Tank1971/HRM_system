@@ -80,7 +80,18 @@ insightsRouter.get('/dashboard/insights', authenticateToken, async (req: Authent
     const weekEnd = addDays(today, 6);
     const myEmployeeId = user.employeeId;
 
-    const allEmployees: Employee[] = await (await getDbCollection('employees').find({})).toArray();
+    // Every read this endpoint needs is independent: fetch them all in one round trip.
+    const [allEmployees, departments, pendingForMe, myOpenRequests, holidaysAhead, leaveRequests, myBalances]: [
+      Employee[], any[], unknown[], number, any[], any[], Awaited<ReturnType<typeof getBalances>> | null,
+    ] = await Promise.all([
+      (async () => (await getDbCollection('employees').find({})).toArray())(),
+      user.role === 'HOD' ? (async () => (await getDbCollection('departments').find({})).toArray())() : Promise.resolve([]),
+      listPendingFor(user.id),
+      getDbCollection('workflowInstances').countDocuments({ requesterUserId: user.id, status: 'PENDING' }),
+      (async () => (await getDbCollection('holidays').find({ date: { $gte: today } })).toArray())(),
+      (async () => (await getDbCollection('leaveRequests').find({})).toArray())(),
+      myEmployeeId ? getBalances(myEmployeeId, today) : Promise.resolve(null),
+    ]);
     const me = myEmployeeId ? allEmployees.find((e) => e.id === myEmployeeId) : undefined;
 
     // ----- Who the viewer can see -----
@@ -92,7 +103,6 @@ insightsRouter.get('/dashboard/insights', authenticateToken, async (req: Authent
       scopeLabel = 'Organisation';
       inScope = allEmployees;
     } else if (user.role === 'HOD' && myEmployeeId) {
-      const departments: any[] = await (await getDbCollection('departments').find({})).toArray();
       const deptIds = new Set(departments.filter((d) => d.hodId === myEmployeeId).map((d) => d.id));
       if (me?.departmentId) deptIds.add(me.departmentId);
       scope = 'DEPARTMENT';
@@ -110,17 +120,14 @@ insightsRouter.get('/dashboard/insights', authenticateToken, async (req: Authent
     const active = inScope.filter(isActive);
 
     // ----- Today: approvals, away, holidays -----
-    const approvalsPending = (await listPendingFor(user.id)).length;
-    const myOpenRequests = await getDbCollection('workflowInstances').countDocuments({ requesterUserId: user.id, status: 'PENDING' });
+    const approvalsPending = pendingForMe.length;
 
-    const allHolidays: any[] = await (await getDbCollection('holidays').find({ date: { $gte: today } })).toArray();
-    const upcomingHolidays = allHolidays
+    const upcomingHolidays = holidaysAhead
       .filter((h) => !h.locations?.length || !me?.location || h.locations.some((l: string) => l.toLowerCase() === String(me.location).toLowerCase()))
       .sort((a, b) => a.date.localeCompare(b.date))
       .slice(0, 5)
       .map((h) => ({ date: h.date, name: h.name, optional: Boolean(h.optional) }));
 
-    const leaveRequests: any[] = await (await getDbCollection('leaveRequests').find({})).toArray();
     // Employees see who in their own department is away (names and dates only), like the calendar.
     const awayPool = scope === 'SELF' && me?.departmentId
       ? new Set(allEmployees.filter((e) => e.departmentId === me.departmentId).map((e) => e.id))
@@ -137,7 +144,7 @@ insightsRouter.get('/dashboard/insights', authenticateToken, async (req: Authent
     // ----- My leave -----
     let myLeave = null;
     if (me) {
-      const balances = (await getBalances(me.id, today)).filter((b) => b.requiresBalance);
+      const balances = (myBalances || []).filter((b) => b.requiresBalance);
       const mine = leaveRequests.filter((r) => r.employeeId === me.id);
       myLeave = {
         balances: balances.map((b) => ({ code: b.code, name: b.name, color: b.color, available: b.available, used: b.used, credited: b.credited, pending: b.pending })),

@@ -685,45 +685,112 @@ mastersRouter.put('/cycles/:id', requireRoles('SUPER_ADMIN', 'HR'), async (req: 
  * GET /api/employees
  * Supports query filters: departmentId, cycleId, status, search, managerId
  */
+
+/**
+ * The database filter for the employees a user may see, plus any list filters. Scoping and
+ * filtering happen in the database, so only matching records are read and sent.
+ */
+function employeeListFilter(req: AuthenticatedRequest): Record<string, unknown> {
+  const { departmentId, cycleId, status, search, managerId } = req.query;
+  const userRole = req.user?.role;
+  const ids = [req.user?.employeeId, req.user?.id].filter(Boolean) as string[];
+  const userDeptId = req.employeeProfile?.departmentId;
+  const clauses: Record<string, unknown>[] = [];
+
+  // Role scope (SUPER_ADMIN, HR and MANAGEMENT see the whole organisation).
+  if (userRole === 'EMPLOYEE') {
+    clauses.push({ id: { $in: ids } });
+  } else if (userRole === 'REPORTING_MANAGER' || userRole === 'MANAGER') {
+    clauses.push({ $or: [{ managerId: { $in: ids } }, { id: { $in: ids } }] });
+  } else if (userRole === 'HOD') {
+    clauses.push({
+      $or: [
+        ...(userDeptId ? [{ departmentId: userDeptId }] : []),
+        ...(req.user?.employeeId ? [{ hodId: req.user.employeeId }] : []),
+        { id: { $in: ids } },
+      ],
+    });
+  }
+
+  if (departmentId) clauses.push({ departmentId: String(departmentId) });
+  if (cycleId) clauses.push({ cycleId: String(cycleId) });
+  if (status) clauses.push({ status: String(status) });
+  if (managerId) clauses.push({ managerId: String(managerId) });
+  if (search && String(search).trim()) {
+    const re = { $regex: escapeRegex(String(search).trim().slice(0, 100)), $options: 'i' };
+    clauses.push({ $or: [{ name: re }, { employeeCode: re }, { email: re }, { departmentName: re }, { designationName: re }] });
+  }
+  return clauses.length === 0 ? {} : clauses.length === 1 ? clauses[0] : { $and: clauses };
+}
+
+/**
+ * GET /api/employees/lookup
+ * A light list (id, name, code, department...) for pickers and dropdowns, about a tenth of the
+ * size of full records. Same role scope and filters as GET /api/employees.
+ */
+mastersRouter.get('/employees/lookup', async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const rows: Employee[] = await (await getDbCollection('employees').find(employeeListFilter(req))).toArray();
+    res.json(
+      rows
+        .map((e) => ({
+          id: e.id,
+          employeeCode: e.employeeCode,
+          name: e.name,
+          departmentId: e.departmentId,
+          departmentName: e.departmentName,
+          designationName: e.designationName,
+          location: e.location,
+          status: e.status,
+          isPastEmployee: e.isPastEmployee,
+          managerId: e.managerId,
+        }))
+        .sort((a, b) => String(a.name).localeCompare(String(b.name)))
+    );
+  } catch (err) {
+    console.error('[Employees] lookup failed:', err);
+    res.status(500).json({ error: 'Failed to fetch employees.' });
+  }
+});
+
+/**
+ * GET /api/employees
+ * Full employee records the caller may see, filtered by departmentId, cycleId, status,
+ * managerId and search. Without `page` it returns every match (as the existing screens expect);
+ * with `page` (and optional `limit`, max 200) it returns { items, total, page, limit }.
+ */
 mastersRouter.get('/employees', async (req: AuthenticatedRequest, res: Response) => {
   try {
-    const { departmentId, cycleId, status, search, managerId } = req.query;
     const empCol = getDbCollection('employees');
-    let allEmployees: Employee[] = await (await empCol.find({})).toArray();
-
-    // Strict Role-based scope enforcement
-    const userRole = req.user?.role;
-    const userEmpId = req.user?.employeeId;
-    const userDeptId = req.employeeProfile?.departmentId;
-
-    if (userRole === 'EMPLOYEE') {
-      allEmployees = allEmployees.filter((e) => e.id === userEmpId || e.id === req.user?.id);
-    } else if (userRole === 'REPORTING_MANAGER' || userRole === 'MANAGER') {
-      allEmployees = allEmployees.filter(
-        (e) => e.managerId === userEmpId || e.id === userEmpId || e.managerId === req.user?.id
-      );
-    } else if (userRole === 'HOD') {
-      allEmployees = allEmployees.filter(
-        (e) => (userDeptId && e.departmentId === userDeptId) || e.hodId === userEmpId || e.id === userEmpId
-      );
-    }
-    // SUPER_ADMIN, HR, MANAGEMENT have organization-wide access (MANAGEMENT read-only)
-
-    // Filters
-    if (departmentId) {
-      allEmployees = allEmployees.filter((e) => e.departmentId === departmentId);
-    }
-    if (cycleId) {
-      allEmployees = allEmployees.filter((e) => e.cycleId === cycleId);
-    }
-    if (status) {
-      allEmployees = allEmployees.filter((e) => e.status === status);
-    }
-    if (managerId) {
-      allEmployees = allEmployees.filter((e) => e.managerId === managerId);
-    }
     const usersCol = getDbCollection('users');
-    const allUsers: any[] = await (await usersCol.find({})).toArray();
+    const filter = employeeListFilter(req);
+    const paged = req.query.page !== undefined;
+    const limit = Math.min(200, Math.max(1, Number(req.query.limit) || 50));
+    const page = Math.max(1, Number(req.query.page) || 1);
+    const orgWide = ['SUPER_ADMIN', 'HR', 'MANAGEMENT'].includes(String(req.user?.role));
+
+    // Employees, the total (when paging) and login accounts are read together.
+    const [allEmployees, total, orgUsers]: [Employee[], number | null, any[] | null] = await Promise.all([
+      paged
+        ? (async () => (await empCol.find(filter)).sort({ name: 1 }).skip((page - 1) * limit).limit(limit).toArray())()
+        : (async () => (await empCol.find(filter)).toArray())(),
+      paged ? empCol.countDocuments(filter) : Promise.resolve(null),
+      orgWide ? (async () => (await usersCol.find({})).toArray())() : Promise.resolve(null),
+    ]);
+    // Narrow scopes only need the accounts of the few people returned.
+    const allUsers: any[] =
+      orgUsers ??
+      (allEmployees.length
+        ? await (
+            await usersCol.find({
+              $or: [
+                { employeeId: { $in: allEmployees.map((e) => e.id) } },
+                { email: { $in: allEmployees.map((e) => String(e.email || '').toLowerCase().trim()).filter(Boolean) } },
+              ],
+            })
+          ).toArray()
+        : []);
+
     const userByEmpId = new Map<string, any>();
     const userByEmail = new Map<string, any>();
     allUsers.forEach((u: any) => {
@@ -749,18 +816,7 @@ mastersRouter.get('/employees', async (req: AuthenticatedRequest, res: Response)
       }
     });
 
-    if (search) {
-      const q = String(search).toLowerCase();
-      allEmployees = allEmployees.filter(
-        (e) =>
-          e.name.toLowerCase().includes(q) ||
-          e.employeeCode.toLowerCase().includes(q) ||
-          e.email.toLowerCase().includes(q) ||
-          (e.departmentName && e.departmentName.toLowerCase().includes(q)) ||
-          (e.designationName && e.designationName.toLowerCase().includes(q))
-      );
-    }
-
+    if (paged) return res.json({ items: allEmployees, total, page, limit });
     res.json(allEmployees);
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to fetch employee records.' });
@@ -2161,7 +2217,10 @@ async function runNotificationAutoSync(currentUser: User): Promise<void> {
 export async function computeVisibleNotifications(currentUser: User): Promise<any[]> {
   const notifsCol = getDbCollection('notifications');
 
-  await runNotificationAutoSync(currentUser);
+  // Housekeeping (creating missing self-assessment reminders, resolving stale ones) runs in
+  // the background: the list below never waits for it, and its changes appear on the next
+  // poll. It still runs inside this request's company context.
+  void runNotificationAutoSync(currentUser).catch((err) => console.warn('[Notifications] Auto-sync failed:', err));
 
   const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
 

@@ -1,4 +1,8 @@
 import { getDbCollection } from '../db.js';
+import { currentTenantId } from './tenantContext.js';
+
+/** Companies whose cycles were checked since this server started (one check is enough). */
+const ensuredTenants = new Set<string>();
 
 /**
  * The two appraisal cycles every company uses: June and September.
@@ -33,6 +37,8 @@ export const DEFAULT_CYCLES = [
  * Existing cycles (matched by id or code) are never changed. Safe to call on every request.
  */
 export async function ensureDefaultCycles(): Promise<void> {
+  const tenantId = currentTenantId();
+  if (tenantId && ensuredTenants.has(tenantId)) return;
   const col = getDbCollection('cycles');
   const existing: Array<{ id: string; code?: string }> = await (await col.find({})).toArray();
   for (const cycle of DEFAULT_CYCLES) {
@@ -46,4 +52,5 @@ export async function ensureDefaultCycles(): Promise<void> {
       // another request created it first
     }
   }
+  if (tenantId) ensuredTenants.add(tenantId);
 }

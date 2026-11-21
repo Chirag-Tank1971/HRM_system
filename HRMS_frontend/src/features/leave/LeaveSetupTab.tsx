@@ -5,8 +5,7 @@ import { Modal } from '../../components/ui/Modal';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { INPUT_CLASS, LABEL_CLASS } from '../../components/ui/formStyles';
 import { toast } from '../../context/ToastContext';
-import type { Employee } from '../../types';
-import { hrApi, formatDate, type Company, type LeaveBalanceReport, type LeaveType } from '../../services/hrApi';
+import { hrApi, formatDate, getEmployeeLookup, type Company, type EmployeeLite, type LeaveBalanceReport, type LeaveType } from '../../services/hrApi';
 import { DistributeLeaveModal } from './DistributeLeaveModal';
 
 const CARD = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg';
@@ -16,11 +15,21 @@ const ACCRUAL_LABEL = { NONE: 'Not credited automatically', MONTHLY: 'Credited m
 
 interface LeaveSetupTabProps {
   isSuperAdmin: boolean;
-  employees: Employee[];
   onChanged: () => void;
 }
 
-export const LeaveSetupTab: React.FC<LeaveSetupTabProps> = ({ isSuperAdmin, employees, onChanged }) => {
+export const LeaveSetupTab: React.FC<LeaveSetupTabProps> = ({ isSuperAdmin, onChanged }) => {
+  // Pickers only need names and codes: the light list is a fraction of full employee records.
+  const [employees, setEmployees] = useState<EmployeeLite[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getEmployeeLookup()
+      .then((rows) => !cancelled && setEmployees(rows))
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [company, setCompany] = useState<Company | null>(null);
   const [types, setTypes] = useState<LeaveType[]>([]);
   const [editing, setEditing] = useState<Partial<LeaveType> | null>(null);
@@ -302,7 +311,7 @@ const TrackingCard: React.FC<{ company: Company | null; canEdit: boolean; onSave
 // ---------------------------------------------------------------------------
 // Balance adjustments
 // ---------------------------------------------------------------------------
-const AdjustBalanceCard: React.FC<{ employees: Employee[]; types: LeaveType[]; onSaved: () => void }> = ({ employees, types, onSaved }) => {
+const AdjustBalanceCard: React.FC<{ employees: EmployeeLite[]; types: LeaveType[]; onSaved: () => void }> = ({ employees, types, onSaved }) => {
   const [employeeId, setEmployeeId] = useState('');
   const [leaveTypeId, setLeaveTypeId] = useState('');
   const [quantity, setQuantity] = useState('');

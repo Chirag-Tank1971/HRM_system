@@ -349,7 +349,9 @@ interface CachedAuthSession {
 }
 
 const authSessionCache = new Map<string, CachedAuthSession>();
-const AUTH_CACHE_TTL_MS = 30 * 1000; // 30 seconds TTL
+// Logout, password changes and role changes clear entries immediately (invalidateAuthCache),
+// so this only bounds how long other profile edits take to show up.
+const AUTH_CACHE_TTL_MS = 60 * 1000;
 
 export function invalidateAuthCache(userId?: string) {
   if (!userId) {
@@ -419,20 +421,18 @@ async function authenticateWithinTenant(
   req.user = user;
   req.userRole = user.role;
 
-  // Populate associated employee profile
-  let employeeProfile = null;
-  if (user.employeeId) {
-    const employeesCol = getDbCollection('employees');
-    employeeProfile = await employeesCol.findOne({ id: user.employeeId });
-    if (employeeProfile) {
-      req.employeeProfile = employeeProfile;
-    }
+  // The employee profile and the role's permissions are independent lookups: fetch them
+  // together so a cache miss costs one database round trip instead of two.
+  const [employeeProfile, roleRecord]: [Employee | null, Role | null] = await Promise.all([
+    user.employeeId ? getDbCollection('employees').findOne({ id: user.employeeId }) : Promise.resolve(null),
+    getDbCollection('roles').findOne({ roleName: user.role }),
+  ]);
+  if (employeeProfile) {
+    req.employeeProfile = employeeProfile;
   }
 
   // Populate canonical permissions from Role or predefined mapping
   const rolePerms = ROLE_PERMISSIONS[user.role] || [];
-  const rolesCol = getDbCollection('roles');
-  const roleRecord: Role | null = await rolesCol.findOne({ roleName: user.role });
   const permissions: Permission[] = roleRecord && roleRecord.permissions?.length > 0
     ? (roleRecord.permissions as Permission[])
     : rolePerms;

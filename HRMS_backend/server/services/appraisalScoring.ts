@@ -50,10 +50,16 @@ export function getRatingBand(a: Pick<Appraisal, 'finalRating' | 'averageQuarter
  * Builds an employee's quarterly history (chronological by review period) and the rolling
  * score: the average of the most recent four manager-evaluated quarters.
  */
-export async function buildQuarterlyRollup(employeeId: string) {
-  const allReviews: EmployeeReview[] = await (await getDbCollection('employeeReviews').find({ employeeId })).toArray();
+export async function buildQuarterlyRollup(
+  employeeId: string,
+  /** Records the caller already loaded; when given they are used instead of new queries. */
+  preload?: { reviews?: EmployeeReview[]; periods?: ReviewPeriod[] }
+) {
+  const [allReviews, periods]: [EmployeeReview[], ReviewPeriod[]] = await Promise.all([
+    preload?.reviews ?? (async () => (await getDbCollection('employeeReviews').find({ employeeId })).toArray())(),
+    preload?.periods ?? (async () => (await getDbCollection('reviewPeriods').find({})).toArray())(),
+  ]);
   const reviews = allReviews.filter((r) => !r.reviewType || r.reviewType === 'QUARTERLY');
-  const periods: ReviewPeriod[] = await (await getDbCollection('reviewPeriods').find({})).toArray();
   const periodOrder = new Map(periods.map((p) => [p.id, Number(p.year) * 4 + Number(p.quarter)]));
   const orderOf = (r: EmployeeReview) => periodOrder.get(r.reviewPeriodId) ?? new Date(r.createdAt).getTime();
 

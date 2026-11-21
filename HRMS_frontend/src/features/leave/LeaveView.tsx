@@ -7,7 +7,7 @@ import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { INPUT_CLASS, LABEL_CLASS, SELECT_CLASS } from '../../components/ui/formStyles';
 import { toast } from '../../context/ToastContext';
-import type { Employee, User } from '../../types';
+import type { User } from '../../types';
 import {
   hrApi,
   addDaysIso,
@@ -28,7 +28,6 @@ type Tab = 'mine' | 'team' | 'holidays' | 'setup';
 
 interface LeaveViewProps {
   currentUser: User | null;
-  employees: Employee[];
 }
 
 export const CARD = 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg';
@@ -51,7 +50,7 @@ const STATUS_LABEL: Record<LeaveRequestStatus, string> = {
 const halfNote = (r: LeaveRequest) =>
   r.startHalf && r.endHalf ? ' (half days at both ends)' : r.startHalf ? ' (starts after first half)' : r.endHalf ? ' (ends after first half)' : '';
 
-export const LeaveView: React.FC<LeaveViewProps> = ({ currentUser, employees }) => {
+export const LeaveView: React.FC<LeaveViewProps> = ({ currentUser }) => {
   const role = currentUser?.role;
   const isHr = role === 'SUPER_ADMIN' || role === 'HR';
   const leadsPeople = isHr || role === 'MANAGER' || role === 'REPORTING_MANAGER' || role === 'HOD';
@@ -144,7 +143,7 @@ export const LeaveView: React.FC<LeaveViewProps> = ({ currentUser, employees }) 
       {tab === 'team' && <TeamLeaveTab isHr={isHr} />}
       {tab === 'holidays' && <HolidaysTab canEdit={isHr} />}
       {tab === 'setup' && isHr && (
-        <LeaveSetupTab isSuperAdmin={role === 'SUPER_ADMIN'} employees={employees} onChanged={() => void loadMine()} />
+        <LeaveSetupTab isSuperAdmin={role === 'SUPER_ADMIN'} onChanged={() => void loadMine()} />
       )}
 
       <ApplyLeaveModal

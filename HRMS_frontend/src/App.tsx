@@ -1,5 +1,11 @@
 import { useState, useEffect, Suspense, lazy } from 'react';
-import { LazyMotion, MotionConfig, domMax } from 'framer-motion';
+import { LazyMotion, MotionConfig } from 'framer-motion';
+
+// The animation engine is only used by a few screens (reviews, appraisals, hierarchy), so it is
+// a separate download. It starts loading straight away, in parallel with the first screen,
+// rather than being part of the main bundle every visitor waits for.
+const motionFeatures = import('./animations/features').then((m) => m.default);
+const loadMotionFeatures = () => motionFeatures;
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './context/ToastContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -24,6 +30,11 @@ import { ReportsViewConfig } from './components/ReportsCenterView';
 import { PageLoadingProgress } from './components/ui/PageLoadingProgress';
 
 // Route-level code splitting: Lazy load heavy domain views
+/** Screens that read the company-wide lists from useMasterData. */
+const MASTER_DATA_VIEWS = new Set<string>([
+  'appraisals', 'calibration', 'reviews', 'reports', 'pip', 'kras', 'sales_champs', 'employees', 'hierarchy', 'management',
+]);
+
 const DashboardView = lazy(() =>
   import('./components/dashboard/DashboardView').then((m) => ({ default: m.DashboardView }))
 );
@@ -102,6 +113,18 @@ function AppContent() {
   // Synchronized URL Hash Navigation
   const { currentView, setView, isPending: isViewPending } = useUrlHashView();
 
+  // The company-wide lists are loaded when a screen that uses them opens, and otherwise a few
+  // seconds after sign-in, so the first screen (usually the dashboard) never waits for them.
+  const [masterDataWanted, setMasterDataWanted] = useState(false);
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setMasterDataWanted(false);
+      return;
+    }
+    const timer = setTimeout(() => setMasterDataWanted(true), 4000);
+    return () => clearTimeout(timer);
+  }, [isAuthenticated]);
+
   // View-specific configurations for direct workflow navigation
   const [dashboardConfig, setDashboardConfig] = useState<{ openLetter?: boolean } | null>(null);
   const [appraisalConfig, setAppraisalConfig] = useState<AppraisalViewConfig | null>(null);
@@ -130,7 +153,7 @@ function AppContent() {
     refreshMasterData,
     saveTemplate,
     saveKra,
-  } = useMasterData(isAuthenticated);
+  } = useMasterData(isAuthenticated && (masterDataWanted || MASTER_DATA_VIEWS.has(currentView)), user?.id);
 
   // Hierarchy Employee Modal State
   const [isHierarchyEmpModalOpen, setIsHierarchyEmpModalOpen] = useState(false);
@@ -379,7 +402,7 @@ function AppContent() {
                 ) : currentView === 'sales_champs' ? (
                   <SalesChampsView employees={employees} departments={departments} />
                 ) : currentView === 'leave' ? (
-                  <LeaveView currentUser={user} employees={employees} />
+                  <LeaveView currentUser={user} />
                 ) : currentView === 'calendar' ? (
                   <CalendarView currentUser={user} />
                 ) : currentView === 'approvals' ? (
@@ -505,8 +528,7 @@ export default function App() {
       <ToastProvider>
         <AuthProvider>
           <NotificationsProvider>
-            {/* Loaded up front on purpose: pages start at opacity 0 and need the engine to fade in */}
-            <LazyMotion features={domMax} strict={false}>
+            <LazyMotion features={loadMotionFeatures} strict={false}>
               <MotionConfig reducedMotion="user">
                 <AppContent />
               </MotionConfig>

@@ -392,7 +392,18 @@ async function buildMyReview(
     .sort((a, b) => byPeriod(a) - byPeriod(b));
 
   const current = reviews.find((r) => !isClosed(r)) || reviews[reviews.length - 1] || null;
-  const rollup = await buildQuarterlyRollup(employee.id);
+  // Everything below that needs the database runs together: the rollup reuses the reviews and
+  // periods already loaded, and the KRA fallbacks and active PIP are fetched in parallel.
+  const [rollup, fallbackTemplate, activeKras, activePip] = await Promise.all([
+    buildQuarterlyRollup(employee.id, { reviews: myReviews, periods: [...periodMap.values()] }),
+    current?.kraSnapshot?.length || !employee.currentKraTemplateId
+      ? Promise.resolve(null)
+      : getDbCollection('kraTemplates').findOne({ id: employee.currentKraTemplateId }) as Promise<KraTemplate | null>,
+    current?.kraSnapshot?.length
+      ? Promise.resolve([] as any[])
+      : (async () => (await getDbCollection('kras').find({ active: true })).toArray())(),
+    getActivePipForEmployee(employee.id),
+  ]);
   const evaluated = reviews.filter(isEvaluated);
   const latestEvaluated = evaluated[evaluated.length - 1];
 
@@ -406,10 +417,7 @@ async function buildMyReview(
     })) || [];
 
   if (!kraSource || kraSource.length === 0) {
-    const templates = getDbCollection('kraTemplates');
-    const template: KraTemplate | null = employee.currentKraTemplateId
-      ? await templates.findOne({ id: employee.currentKraTemplateId })
-      : null;
+    const template: KraTemplate | null = fallbackTemplate;
     kraSource = (template?.items || []).map((k) => ({
       title: k.title || 'KRA',
       weight: k.weight,
@@ -420,16 +428,17 @@ async function buildMyReview(
   }
 
   if (!kraSource || kraSource.length === 0) {
-    const krasCol = getDbCollection('kras');
+    // Same preference order as before (designation, then department, then any active KRA),
+    // picked from one query instead of up to three.
     let assignedKras: any[] = [];
     if (employee.designationId) {
-      assignedKras = await krasCol.find({ designationId: employee.designationId, active: true }).toArray();
+      assignedKras = activeKras.filter((k: any) => k.designationId === employee.designationId);
     }
     if (!assignedKras.length && employee.departmentId) {
-      assignedKras = await krasCol.find({ departmentId: employee.departmentId, active: true }).toArray();
+      assignedKras = activeKras.filter((k: any) => k.departmentId === employee.departmentId);
     }
     if (!assignedKras.length) {
-      assignedKras = await krasCol.find({ active: true }).toArray();
+      assignedKras = activeKras;
     }
 
     if (assignedKras.length > 0) {
@@ -540,7 +549,7 @@ async function buildMyReview(
     scoreHistory: evaluated.slice(-6).map((r) => ({ periodName: r.reviewPeriodName, score: r.finalScore || 0 })),
     kras,
     nextAppraisal,
-    activePip: await getActivePipForEmployee(employee.id),
+    activePip,
   };
 }
 
@@ -669,10 +678,12 @@ async function buildHrTasks(
   const reviewsCol = getDbCollection('employeeReviews');
   const appraisalsCol = getDbCollection('appraisals');
 
-  // Reviews waiting for HR completion/sign-off
-  const hrPendingReviews: EmployeeReview[] = await (
-    await reviewsCol.find({ status: { $in: ['HR_PENDING', 'MANAGER_COMPLETED'] } })
-  ).toArray();
+  // Reviews waiting for HR sign-off and appraisals awaiting calibration: two independent reads,
+  // fetched together.
+  const [hrPendingReviews, pendingAppraisalsPrefetched]: [EmployeeReview[], Appraisal[]] = await Promise.all([
+    (async () => (await reviewsCol.find({ status: { $in: ['HR_PENDING', 'MANAGER_COMPLETED'] } })).toArray())(),
+    (async () => (await appraisalsCol.find({ status: 'PENDING', isLocked: false })).toArray())(),
+  ]);
 
   for (const review of hrPendingReviews) {
     if (isClosed(review)) continue;
@@ -700,9 +711,7 @@ async function buildHrTasks(
   }
 
   // Pending annual appraisals awaiting calibration or lock
-  const pendingAppraisals: Appraisal[] = await (
-    await appraisalsCol.find({ status: 'PENDING', isLocked: false })
-  ).toArray();
+  const pendingAppraisals: Appraisal[] = pendingAppraisalsPrefetched;
 
   if (pendingAppraisals.length > 0) {
     tasks.push({
@@ -1416,13 +1425,25 @@ dashboardRouter.get('/dashboard/summary', async (req: AuthenticatedRequest, res:
     const isHrOrAdmin = user.role === 'HR' || user.role === 'SUPER_ADMIN' || user.role === 'MANAGEMENT';
     const isHod = user.role === 'HOD';
 
-    const [periods, cycles, directReports, allEmployees, allDepartments, allTemplates]: [
+    const reviewsCol = getDbCollection('employeeReviews');
+    const appraisalsCol = getDbCollection('appraisals');
+    const pipsCol = getDbCollection('performanceImprovementPlans');
+
+    // Round 1: everything that does not depend on another query, fetched together. Each
+    // await is a round trip to the database, so the number of rounds, not the number of
+    // queries, decides how long the dashboard takes.
+    const [periods, cycles, directReports, allEmployees, allDepartments, allTemplates, me, myReviews, myAppraisals, myPips, managedPips]: [
       ReviewPeriod[],
       Cycle[],
       Employee[],
       Employee[],
       Department[],
-      KraTemplate[]
+      KraTemplate[],
+      Employee | null,
+      EmployeeReview[],
+      Appraisal[],
+      PerformanceImprovementPlan[],
+      PerformanceImprovementPlan[],
     ] = await Promise.all([
       (await getDbCollection('reviewPeriods').find({})).toArray(),
       (await getDbCollection('cycles').find({})).toArray(),
@@ -1430,44 +1451,61 @@ dashboardRouter.get('/dashboard/summary', async (req: AuthenticatedRequest, res:
       isHrOrAdmin ? (await getDbCollection('employees').find({})).toArray() : Promise.resolve([]),
       isHrOrAdmin ? (await getDbCollection('departments').find({})).toArray() : Promise.resolve([]),
       isHrOrAdmin ? (await getDbCollection('kraTemplates').find({})).toArray() : Promise.resolve([]),
+      myEmployeeId ? getDbCollection('employees').findOne({ id: myEmployeeId }) : Promise.resolve(null),
+      myEmployeeId ? (await reviewsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
+      myEmployeeId ? (await appraisalsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
+      myEmployeeId ? (await pipsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
+      myEmployeeId ? (await pipsCol.find({ $or: [{ managerId: myEmployeeId }, { hodId: myEmployeeId }] })).toArray() : Promise.resolve([]),
     ]);
     const periodMap = new Map(periods.map((p) => [p.id, p]));
     const team = directReports.filter((e) => e.status !== 'INACTIVE' && e.id !== myEmployeeId);
     const teamIds = team.map((e) => e.id);
     const employeeMap = new Map(team.map((e) => [e.id, e]));
 
-    const reviewsCol = getDbCollection('employeeReviews');
-    const appraisalsCol = getDbCollection('appraisals');
-    const pipsCol = getDbCollection('performanceImprovementPlans');
-
-    const [me, myReviews, myAppraisals, myPips, teamReviews, teamAppraisals, managedPips]: [
-      Employee | null,
-      EmployeeReview[],
-      Appraisal[],
-      PerformanceImprovementPlan[],
-      EmployeeReview[],
-      Appraisal[],
-      PerformanceImprovementPlan[],
-    ] = await Promise.all([
-      myEmployeeId ? getDbCollection('employees').findOne({ id: myEmployeeId }) : Promise.resolve(null),
-      myEmployeeId ? (await reviewsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
-      myEmployeeId ? (await appraisalsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
-      myEmployeeId ? (await pipsCol.find({ employeeId: myEmployeeId })).toArray() : Promise.resolve([]),
-      teamIds.length ? (await reviewsCol.find({ employeeId: { $in: teamIds } })).toArray() : Promise.resolve([]),
-      teamIds.length ? (await appraisalsCol.find({ employeeId: { $in: teamIds } })).toArray() : Promise.resolve([]),
-      myEmployeeId ? (await pipsCol.find({ $or: [{ managerId: myEmployeeId }, { hodId: myEmployeeId }] })).toArray() : Promise.resolve([]),
-    ]);
-
     const visiblePeriods = periods.filter((p) => p.status !== 'UPCOMING').sort((a, b) => periodOrder(b) - periodOrder(a));
     const activePeriod = periods.find((p) => p.status === 'ACTIVE') || visiblePeriods[0];
 
-    const [employeeTasks, managerTasks, hrTasks, hodTasks, notificationTasks] = await Promise.all([
-      Promise.resolve(buildEmployeeTasks(myReviews, myAppraisals, myPips, periodMap, now)),
-      Promise.resolve(buildManagerTasks(user, myIds, teamReviews, teamAppraisals, managedPips, employeeMap, periodMap, now)),
+    // Round 2: the team's records, the role overviews, the task lists and the viewer's own
+    // review card are independent of each other, so they all run at once.
+    const [[teamReviews, teamAppraisals], hrTasks, hodTasks, notificationTasks, hrOverview, hodOverview, adminOverview, myReview]: [
+      [EmployeeReview[], Appraisal[]],
+      DashboardTask[],
+      DashboardTask[],
+      DashboardTask[],
+      Awaited<ReturnType<typeof buildHrOverview>> | null,
+      Awaited<ReturnType<typeof buildHodOverview>> | null,
+      Awaited<ReturnType<typeof buildAdminOverview>> | null,
+      Awaited<ReturnType<typeof buildMyReview>> | null,
+    ] = await Promise.all([
+      teamIds.length
+        ? Promise.all([
+            (async () => (await reviewsCol.find({ employeeId: { $in: teamIds } })).toArray())(),
+            (async () => (await appraisalsCol.find({ employeeId: { $in: teamIds } })).toArray())(),
+          ])
+        : Promise.resolve([[], []] as [EmployeeReview[], Appraisal[]]),
       isHrOrAdmin ? buildHrTasks(periodMap, now, allEmployees, allTemplates) : Promise.resolve([]),
       (isHod && myEmployeeId) ? buildHodTasks(myEmployeeId, periodMap, now) : Promise.resolve([]),
       buildNotificationTasks(user),
+      isHrOrAdmin ? buildHrOverview(activePeriod, allEmployees, allDepartments, cycles, allTemplates) : Promise.resolve(null),
+      isHod && myEmployeeId
+        ? (async () =>
+            buildHodOverview(
+              myEmployeeId,
+              periodMap,
+              // The HOD overview only needs the HOD and their department, not every employee
+              isHrOrAdmin
+                ? allEmployees
+                : me?.departmentId
+                ? await (await getDbCollection('employees').find({ $or: [{ id: myEmployeeId }, { departmentId: me.departmentId }] })).toArray()
+                : me ? [me] : []
+            ))()
+        : Promise.resolve(null),
+      isAdmin ? buildAdminOverview(allEmployees, allDepartments, cycles, allTemplates, periods, now) : Promise.resolve(null),
+      me ? buildMyReview(me, myReviews, myAppraisals, periodMap, cycles, nowDate) : Promise.resolve(null),
     ]);
+
+    const employeeTasks = buildEmployeeTasks(myReviews, myAppraisals, myPips, periodMap, now);
+    const managerTasks = buildManagerTasks(user, myIds, teamReviews, teamAppraisals, managedPips, employeeMap, periodMap, now);
 
     const allCandidateTasks = [
       ...employeeTasks,
@@ -1488,30 +1526,11 @@ dashboardRouter.get('/dashboard/summary', async (req: AuthenticatedRequest, res:
 
     const tasks = sortTasks(deduplicatedTasks);
 
-    // The role sections are independent — build them in parallel.
-    const [hrOverview, hodOverview, adminOverview] = await Promise.all([
-      isHrOrAdmin ? buildHrOverview(activePeriod, allEmployees, allDepartments, cycles, allTemplates) : Promise.resolve(null),
-      isHod && myEmployeeId
-        ? (async () =>
-            buildHodOverview(
-              myEmployeeId,
-              periodMap,
-              // The HOD overview only needs the HOD and their department, not every employee
-              isHrOrAdmin
-                ? allEmployees
-                : me?.departmentId
-                ? await (await getDbCollection('employees').find({ $or: [{ id: myEmployeeId }, { departmentId: me.departmentId }] })).toArray()
-                : me ? [me] : []
-            ))()
-        : Promise.resolve(null),
-      isAdmin ? buildAdminOverview(allEmployees, allDepartments, cycles, allTemplates, periods, now) : Promise.resolve(null),
-    ]);
-
     const summary: DashboardSummary = {
       generatedAt: nowDate.toISOString(),
       period: activePeriod ? toPeriod(activePeriod) : null,
       tasks,
-      me: me ? await buildMyReview(me, myReviews, myAppraisals, periodMap, cycles, nowDate) : null,
+      me: myReview,
       team: team.length > 0 ? buildTeam(team, teamReviews, managedPips, periodMap) : null,
       hr: hrOverview,
       hod: hodOverview,

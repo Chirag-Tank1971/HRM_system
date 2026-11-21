@@ -289,3 +289,19 @@ export interface DashboardInsights {
 }
 
 export const getDashboardInsights = () => apiRequest<DashboardInsights>('/dashboard/insights');
+
+/** A light employee record for pickers (GET /api/employees/lookup). */
+export interface EmployeeLite {
+  id: string;
+  employeeCode: string;
+  name: string;
+  departmentId?: string;
+  departmentName?: string;
+  designationName?: string;
+  location?: string;
+  status: string;
+  isPastEmployee?: boolean;
+  managerId?: string;
+}
+
+export const getEmployeeLookup = () => apiRequest<EmployeeLite[]>('/employees/lookup');

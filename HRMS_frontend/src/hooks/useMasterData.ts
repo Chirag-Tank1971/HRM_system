@@ -1,8 +1,15 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { KraTemplate, Kra, Department, Designation, Employee, Cycle } from '../types';
 import { api } from '../services/api';
 
-export function useMasterData(enabled: boolean = true) {
+/**
+ * Company-wide lists (employees, departments, KRAs...) used by several screens.
+ *
+ * Loaded once, the first time `enabled` is true, and again whenever `reloadKey` changes (a
+ * different user signs in). Screens that don't need these lists can keep `enabled` false so
+ * the first page after sign-in doesn't wait for them.
+ */
+export function useMasterData(enabled: boolean = true, reloadKey?: string) {
   const [templates, setTemplates] = useState<KraTemplate[]>([]);
   const [kras, setKras] = useState<Kra[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
@@ -39,11 +46,14 @@ export function useMasterData(enabled: boolean = true) {
     }
   }, []);
 
+  const loadedForRef = useRef<string | null>(null);
   useEffect(() => {
-    if (enabled) {
+    const key = reloadKey ?? 'default';
+    if (enabled && loadedForRef.current !== key) {
+      loadedForRef.current = key;
       refreshMasterData();
     }
-  }, [enabled, refreshMasterData]);
+  }, [enabled, reloadKey, refreshMasterData]);
 
   const saveTemplate = async (templateData: Partial<KraTemplate>) => {
     if (templateData.id) {

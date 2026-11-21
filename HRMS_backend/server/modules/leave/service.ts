@@ -391,11 +391,14 @@ export interface LeaveBalance {
 }
 
 export async function getBalances(employeeId: string, onDate: string = todayIso()): Promise<LeaveBalance[]> {
-  const settings = await getCurrentTenantSettings();
+  // Independent reads, fetched together (one database round trip instead of four).
+  const [settings, types, ledger, pending]: [Awaited<ReturnType<typeof getCurrentTenantSettings>>, LeaveType[], any[], LeaveRequest[]] = await Promise.all([
+    getCurrentTenantSettings(),
+    listLeaveTypes(),
+    (async () => (await getDbCollection('leaveLedger').find({ employeeId })).toArray())(),
+    (async () => (await getDbCollection('leaveRequests').find({ employeeId, status: 'PENDING' })).toArray())(),
+  ]);
   const year = leaveYearOf(onDate, settings.leaveYearStartMonth);
-  const types = await listLeaveTypes();
-  const ledger: any[] = await (await getDbCollection('leaveLedger').find({ employeeId })).toArray();
-  const pending: LeaveRequest[] = await (await getDbCollection('leaveRequests').find({ employeeId, status: 'PENDING' })).toArray();
 
   return types.map((t) => {
     const rows = ledger.filter((r) => r.leaveTypeId === t.id);

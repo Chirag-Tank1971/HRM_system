@@ -5,8 +5,7 @@ import { Button } from '../../components/ui/Button';
 import { SegmentedControl } from '../../components/ui/SegmentedControl';
 import { INPUT_CLASS, LABEL_CLASS } from '../../components/ui/formStyles';
 import { toast } from '../../context/ToastContext';
-import type { Employee } from '../../types';
-import { hrApi, formatDays, type DistributionResult, type LeaveType } from '../../services/hrApi';
+import { hrApi, formatDays, type DistributionResult, type EmployeeLite, type LeaveType } from '../../services/hrApi';
 
 type Scope = 'ALL' | 'DEPARTMENTS' | 'EMPLOYEES';
 
@@ -15,7 +14,7 @@ interface DistributeLeaveModalProps {
   onClose: () => void;
   onDistributed: () => void;
   leaveTypes: LeaveType[];
-  employees: Employee[];
+  employees: EmployeeLite[];
 }
 
 const CHECKBOX = 'rounded border-slate-300 text-indigo-600 focus:ring-indigo-500';
