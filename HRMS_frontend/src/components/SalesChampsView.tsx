@@ -80,7 +80,7 @@ const PlanDetails: React.FC<{ report: SalesChampsReport }> = ({ report: r }) => 
       </dl>
 
       {tiers.length ? (
-        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-3xl">
+        <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
           <table className="w-full text-xs tabular-nums">
             <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
               <tr>

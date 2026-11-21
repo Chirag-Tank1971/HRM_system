@@ -250,7 +250,7 @@ export const KraManagementView: React.FC<KraManagementViewProps> = ({
                               <td colSpan={canManage ? 7 : 6} className="p-0">
                                 <div className="px-4 sm:px-6 py-4 bg-slate-50/70 dark:bg-slate-850/60 border-t border-slate-100 dark:border-slate-800 space-y-3">
                                   {tmpl.items.length ? (
-                                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 max-w-4xl">
+                                    <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
                                       <table className="w-full text-xs">
                                         <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
                                           <tr>
