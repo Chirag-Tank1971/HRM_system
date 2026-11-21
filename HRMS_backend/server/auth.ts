@@ -405,6 +405,13 @@ async function authenticateWithinTenant(
   const cached = authSessionCache.get(token);
   const now = Date.now();
   if (cached && (now - cached.cachedAt < AUTH_CACHE_TTL_MS)) {
+    // A suspended or cancelled company is locked out at once, even for cached sessions. The
+    // tenant lookup is itself cached and is cleared whenever a company's status changes.
+    const tenantId = currentTenantId();
+    if (!tenantId || !(await isTenantUsable(tenantId))) {
+      authSessionCache.delete(token);
+      return res.status(401).json({ error: 'Authentication required. Invalid or expired session token.' });
+    }
     req.user = cached.user;
     req.userRole = cached.userRole;
     req.employeeProfile = cached.employeeProfile;
