@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Target, Plus, Search, RefreshCw, Lock, CheckCircle2,
-  Download, Printer, Pencil, Loader2, Trash2, AlertTriangle, FilePen,
+  Download, Printer, Pencil, Loader2, Trash2, AlertTriangle, FilePen, ChevronRight,
 } from 'lucide-react';
 import { Employee, Department } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -46,6 +46,83 @@ function toChampsData(r: SalesChampsReport, companyName: string): ChampsReportDa
   };
 }
 
+const NEXT_STEP: Record<string, string> = {
+  DRAFT: 'Next: HR checks it and marks it Final.',
+  FINAL: 'Next: a Super Admin locks it, which shares it with the salesperson.',
+  LOCKED: 'Shared with the salesperson. A locked plan can no longer be changed.',
+};
+
+/** The full plan, shown when a row in the list is opened. */
+const PlanDetails: React.FC<{ report: SalesChampsReport }> = ({ report: r }) => {
+  const terms = champsTermsHtml(r);
+  const facts: [string, React.ReactNode][] = [
+    ['Individual GM2 target', <span className="text-base font-semibold text-slate-900 dark:text-white tabular-nums">₹{r.gm2TargetCr}</span>],
+    ['Period', r.fyDateRange || '—'],
+    ['Published on', r.publishedDate || '—'],
+    ...(r.incentiveSchemeName ? [['Plan subtitle', r.incentiveSchemeName] as [string, React.ReactNode]] : []),
+    ...(r.mintValue ? [['Company motto', r.mintValue] as [string, React.ReactNode]] : []),
+    ['Created by', r.createdByName || '—'],
+    ['Last updated', r.updatedAt ? new Date(r.updatedAt).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' }) : '—'],
+  ];
+  return (
+    <div className="px-4 sm:px-6 py-5 bg-slate-50/70 dark:bg-slate-850/60 border-t border-slate-100 dark:border-slate-800 space-y-5">
+      <p className="text-xs text-slate-600 dark:text-slate-400">{NEXT_STEP[r.status || 'DRAFT']}</p>
+
+      <div className="space-y-5">
+        <dl className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-7 gap-x-6 gap-y-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3">
+          {facts.map(([label, value]) => (
+            <div key={label}>
+              <dt className="text-[11px] font-medium text-slate-500 dark:text-slate-400">{label}</dt>
+              <dd className="mt-0.5 text-xs text-slate-800 dark:text-slate-200 break-words">{value}</dd>
+            </div>
+          ))}
+        </dl>
+
+        <div className="min-w-0">
+          <h4 className="text-xs font-semibold text-slate-900 dark:text-white mb-2">Incentive tiers</h4>
+          {r.slabs?.length ? (
+            <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900">
+              <table className="w-full text-xs tabular-nums">
+                <thead className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  <tr>
+                    <th className="py-2 px-3 text-left font-medium">Tier</th>
+                    <th className="py-2 px-3 text-right font-medium">AMC target (L)</th>
+                    <th className="py-2 px-3 text-right font-medium">AMC incentive (L)</th>
+                    <th className="py-2 px-3 text-right font-medium">GM2 achieved (L)</th>
+                    <th className="py-2 px-3 text-right font-medium">Sales incentive (L)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800 text-slate-800 dark:text-slate-200">
+                  {r.slabs.map((sl, i) => (
+                    <tr key={i}>
+                      <td className="py-2 px-3 text-slate-500 dark:text-slate-400">Tier {i + 1}</td>
+                      <td className="py-2 px-3 text-right">{Number(sl.amcTargetLacs) || 0}</td>
+                      <td className="py-2 px-3 text-right">{(Number(sl.amcIncentiveLacs) || 0).toFixed(2)}</td>
+                      <td className="py-2 px-3 text-right">{Number(sl.gm2AchievementLacs) || 0}</td>
+                      <td className="py-2 px-3 text-right font-semibold">{(Number(sl.salesIncentiveLacs) || 0).toFixed(2)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">No tiers added yet.</p>
+          )}
+        </div>
+      </div>
+
+      <div>
+        <h4 className="text-xs font-semibold text-slate-900 dark:text-white mb-2">Terms &amp; conditions</h4>
+        {/* Fixed strings plus escaped custom text, same as the printed plan */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-700 dark:text-slate-300 leading-relaxed text-xs">
+          <ul className="space-y-1.5 list-disc pl-4 [&_ul]:list-[circle] [&_ul]:text-slate-600 dark:[&_ul]:text-slate-400" dangerouslySetInnerHTML={{ __html: terms.left.join('') }} />
+          <ul className="space-y-1.5 list-disc pl-4" dangerouslySetInnerHTML={{ __html: terms.right.join('') }} />
+        </div>
+      </div>
+    </div>
+  );
+};
+
 type PendingConfirm = { kind: 'lock' | 'delete'; report: SalesChampsReport } | null;
 
 export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => {
@@ -68,6 +145,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
   const [actionLoading, setActionLoading] = useState<Record<string, string>>({});
   const [pdfLoading, setPdfLoading] = useState<string | null>(null);
   const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
@@ -426,9 +504,32 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                   const isActing = actionLoading[r.id!];
                   const isPdfDl = pdfLoading === r.id;
                   const isLocked = r.status === 'LOCKED';
+                  const isOpen = expandedId === r.id;
+                  const toggle = () => setExpandedId(isOpen ? null : r.id!);
                   return (
-                    <tr key={r.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">{r.employeeName}</td>
+                    <React.Fragment key={r.id}>
+                    <tr
+                      onClick={toggle}
+                      className={cn(
+                        'cursor-pointer transition-colors',
+                        isOpen ? 'bg-indigo-50/50 dark:bg-indigo-950/20' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                      )}
+                    >
+                      <td className="py-3 px-4 font-medium text-slate-900 dark:text-white">
+                        <button
+                          type="button"
+                          aria-expanded={isOpen}
+                          aria-controls={`plan-details-${r.id}`}
+                          onClick={(e) => { e.stopPropagation(); toggle(); }}
+                          className="inline-flex items-center gap-1.5 text-left rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 cursor-pointer"
+                        >
+                          <ChevronRight
+                            className={cn('w-3.5 h-3.5 shrink-0 text-slate-400 transition-transform motion-reduce:transition-none', isOpen && 'rotate-90 text-indigo-600 dark:text-indigo-400')}
+                            aria-hidden="true"
+                          />
+                          {r.employeeName}
+                        </button>
+                      </td>
                       <td className="py-3 px-4">{r.financialYear}</td>
                       <td className="py-3 px-4 text-right tabular-nums font-medium text-slate-900 dark:text-white">₹{r.gm2TargetCr}</td>
                       <td className="py-3 px-4">
@@ -438,7 +539,7 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                       <td className="py-3 px-4 text-slate-500 dark:text-slate-400 tabular-nums">
                         {r.updatedAt ? new Date(r.updatedAt).toLocaleDateString('en-IN') : '—'}
                       </td>
-                      <td className="py-3 px-4">
+                      <td className="py-3 px-4" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center justify-end gap-1">
                           {!isLocked && (
                             <Button
@@ -504,6 +605,14 @@ export const SalesChampsView: React.FC<Props> = ({ employees, departments }) => 
                         </div>
                       </td>
                     </tr>
+                    {isOpen && (
+                      <tr id={`plan-details-${r.id}`}>
+                        <td colSpan={7} className="p-0">
+                          <PlanDetails report={r} />
+                        </td>
+                      </tr>
+                    )}
+                    </React.Fragment>
                   );
                 })}
               </tbody>
